@@ -346,15 +346,6 @@ function renderContent() {
             </div>
         `).join('');
 
-        const lockOverlay = !isPkgUnlocked ? `
-            <div class="pkg-lock-overlay">
-                <div class="voucher-group">
-                    <input type="text" class="voucher-input pkg-v-input" placeholder="كود التفعيل">
-                    <button class="btn-primary btn-sm" onclick="checkPackageVoucher(this, '${pkg.id}')">تفعيل</button>
-                </div>
-            </div>
-        ` : '';
-
         packagesList.innerHTML += `
             <div class="item-card package-card ${isPkgUnlocked ? 'is-unlocked' : 'is-locked'}">
                 <div class="package-badge">${pkg.videos.length} فيديو</div>
@@ -363,12 +354,11 @@ function renderContent() {
                     <p style="margin-bottom: 15px;">${pkg.desc}</p>
                     <div class="pkg-videos-preview">
                         ${videosHtml}
-                        ${lockOverlay}
                     </div>
                     <div class="pkg-footer">
                         <div class="pkg-price">${isPkgUnlocked ? '<span class="unlocked-text"><i class="fas fa-check-circle"></i> تم التفعيل</span>' : pkg.price + ' ج.م'}</div>
                         ${!isPkgUnlocked ? `
-                            <button class="btn-primary" onclick="showSubscriptionInfo('${pkg.title}', '${pkg.price}')">
+                            <button class="btn-primary" onclick="showSubscriptionInfo('${pkg.title}', '${pkg.price}', '${pkg.id}')">
                                 <i class="fas fa-shopping-cart"></i> اشترك الآن
                             </button>
                         ` : `
@@ -1243,48 +1233,95 @@ async function checkPackageVoucher(btn, pkgId) {
 function openPackageVideo(url, title) {
     const modal = document.getElementById('intro-modal');
     const videoId = getYouTubeId(url);
+    if (!videoId) return alert('عذراً، رابط الفيديو غير صحيح');
+
     modal.style.display = 'flex';
 
-    if (ytPlayers['intro']) {
-        ytPlayers['intro'].loadVideoById(videoId);
+    if (ytPlayers['intro'] && ytPlayers['intro'].loadVideoById) {
+        try {
+            ytPlayers['intro'].loadVideoById(videoId);
+            ytPlayers['intro'].playVideo();
+        } catch (e) {
+            initYTPlayer('intro', videoId, 'intro-video-iframe');
+        }
     } else {
         initYTPlayer('intro', videoId, 'intro-video-iframe');
     }
-    // You could also update a title in the modal if needed
 }
 
-function showSubscriptionInfo(title, price) {
+function showSubscriptionInfo(title, price, pkgId) {
     const phone = "01550366657";
     const modal = document.createElement('div');
+    modal.id = 'subscription-modal';
     modal.className = 'modal';
     modal.style.display = 'flex';
     modal.style.zIndex = '10000';
     modal.innerHTML = `
-        <div class="modal-content glass" style="max-width: 400px; text-align: center;">
+        <div class="modal-content glass" style="max-width: 450px; text-align: center; border: 1px solid var(--primary-color);">
             <div style="font-size: 3rem; color: #22c55e; margin-bottom: 20px;">
                 <i class="fab fa-vimeo-v" style="background: #ef4444; color: white; border-radius: 50%; width: 60px; height: 60px; display: inline-flex; align-items: center; justify-content: center; font-size: 1.5rem;">V</i>
             </div>
             <h3>الاشتراك في باقة: ${title}</h3>
-            <p style="margin: 15px 0;">للاشتراك، برجاء تحويل مبلغ <strong style="color: var(--primary-light); font-size: 1.2rem;">${price} ج.م</strong> عبر فودافون كاش للرقم التالي:</p>
             
-            <div style="background: rgba(255,255,255,0.05); padding: 15px; border-radius: 10px; margin-bottom: 20px; display: flex; align-items: center; justify-content: center; gap: 15px;">
-                <span id="payment-phone" style="font-size: 1.5rem; font-family: monospace; letter-spacing: 2px;">${phone}</span>
-                <button onclick="copyToClipboard('${phone}')" class="btn-icon" title="نسخ الرقم">
-                    <i class="fas fa-copy"></i>
+            <div class="subscription-section">
+                <p style="margin: 15px 0;">للاشتراك، برجاء تحويل <strong style="color: var(--primary-light);">${price} ج.م</strong> عبر فودافون كاش:</p>
+                <div style="background: rgba(255,255,255,0.05); padding: 15px; border-radius: 10px; margin-bottom: 15px; display: flex; align-items: center; justify-content: center; gap: 15px;">
+                    <span id="payment-phone" style="font-size: 1.5rem; font-family: monospace; letter-spacing: 2px;">${phone}</span>
+                    <button onclick="copyToClipboard('${phone}')" class="btn-icon" title="نسخ الرقم">
+                        <i class="fas fa-copy"></i>
+                    </button>
+                </div>
+                <button class="btn-primary w-100" onclick="contactSupportWhatsApp('${phone}', '${title}')">
+                    <i class="fab fa-whatsapp"></i> إرسال إيصال التحويل لتفعيل الباقة
                 </button>
             </div>
 
-            <p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 20px;">بعد التحويل، أرسل صورة إيصال التحويل عبر واتساب لنفس الرقم لتفعيل الباقة لك.</p>
-            
-            <div style="display: flex; gap: 10px;">
-                <button class="btn-primary w-100" onclick="contactSupportWhatsApp('${phone}', '${title}')">
-                    <i class="fab fa-whatsapp"></i> مراسلة واتساب لتأكيد الدفع
-                </button>
-                <button class="btn-outline" onclick="this.closest('.modal').remove()">إغلاق</button>
+            <div style="margin: 20px 0; display: flex; align-items: center; gap: 10px; color: var(--text-muted);">
+                <hr style="flex: 1; border: 0.5px solid var(--glass-border);">
+                <span>أو إذا كان معك كود</span>
+                <hr style="flex: 1; border: 0.5px solid var(--glass-border);">
             </div>
+
+            <div class="voucher-activation-section">
+                <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 10px;">أدخل كود التفعيل الذي استلمته من المدرس</p>
+                <div style="display: flex; gap: 10px;">
+                    <input type="text" id="modal-voucher-input" class="voucher-input" placeholder="أدخل الكود هنا" style="text-align: center; letter-spacing: 2px;">
+                    <button class="btn-primary" onclick="handleModalVoucherActivation('${pkgId}')" style="min-width: 100px;">تفعيل</button>
+                </div>
+            </div>
+
+            <button class="btn-outline w-100" style="margin-top: 20px;" onclick="this.closest('.modal').remove()">إغلاق</button>
         </div>
     `;
     document.body.appendChild(modal);
+}
+
+async function handleModalVoucherActivation(pkgId) {
+    const input = document.getElementById('modal-voucher-input');
+    const code = input.value.trim().toUpperCase();
+    if (!code) return alert('برجاء إدخل الكود');
+
+    const voucher = appData.vouchers.find(v => v.code === code);
+    if (voucher) {
+        if (voucher.isUsed) return alert('هذا الكود تم استخدامه من قبل');
+        if (voucher.isActive === false) return alert('تم إيقاف هذا الكود');
+
+        try {
+            await db.collection('vouchers').doc(voucher.id).update({
+                isUsed: true,
+                usedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            voucher.isUsed = true;
+            localStorage.setItem(`pkg_unlocked_${pkgId}`, 'true');
+            alert('تم تفعيل الباقة بنجاح!');
+            document.getElementById('subscription-modal').remove();
+            renderContent();
+        } catch (e) {
+            alert('خطأ في الاتصال بالسحابة');
+        }
+    } else {
+        alert('كود غير صحيح');
+    }
 }
 
 function copyToClipboard(text) {
@@ -1636,9 +1673,20 @@ function initYTPlayer(id, videoId, elementId = null) {
 
     const targetId = elementId || `player-${id}`;
 
+    // For modal/intro, ensure the element exists because destroy() removes it from DOM
+    if (id === 'intro' && !document.getElementById('intro-video-iframe')) {
+        const wrapper = document.getElementById('intro-video-wrapper');
+        if (wrapper) {
+            wrapper.insertAdjacentHTML('afterbegin', '<iframe id="intro-video-iframe" src="" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"></iframe>');
+        }
+    }
+
     // Clean up old player if exists
     if (ytPlayers[id]) {
-        try { ytPlayers[id].destroy(); } catch (e) { }
+        try {
+            ytPlayers[id].destroy();
+            delete ytPlayers[id];
+        } catch (e) { }
     }
 
     ytPlayers[id] = new YT.Player(targetId, {
@@ -1646,14 +1694,14 @@ function initYTPlayer(id, videoId, elementId = null) {
         width: '100%',
         videoId: videoId,
         playerVars: {
-            'autoplay': 0,
+            'autoplay': (id === 'intro') ? 1 : 0,
             'controls': 1,
             'modestbranding': 1,
             'rel': 0,
             'showinfo': 0,
             'iv_load_policy': 3,
             'disablekb': 1,
-            'fs': 0,
+            'fs': 1,
             'enablejsapi': 1,
             'origin': window.location.origin
         },
