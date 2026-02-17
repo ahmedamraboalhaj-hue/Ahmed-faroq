@@ -1131,7 +1131,7 @@ function sendWhatsAppMessage(event) {
     const phone = document.getElementById('contact-phone').value;
     const grade = document.getElementById('contact-grade').value;
     const message = document.getElementById('contact-message').value;
-    const whatsappNumber = "201204767017";
+    const whatsappNumber = "201550366657";
     const text = `*رسالة جديدة من الموقع*%0A%0A` +
         `*الاسم:* ${name}%0A` +
         `*رقم الهاتف:* ${phone}%0A` +
