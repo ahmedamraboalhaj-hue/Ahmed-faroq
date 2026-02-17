@@ -47,6 +47,7 @@ let appData = {
         }
     },
     lessons: [],
+    packages: [],
     exams: [],
     files: [],
     vouchers: [],
@@ -122,6 +123,9 @@ async function loadInitialData() {
 
         const vouchersSnap = await db.collection('vouchers').get();
         appData.vouchers = vouchersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+        const packagesSnap = await db.collection('packages').get();
+        appData.packages = packagesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
         // Real-time listeners for meaningful admin updates
         db.collection('students').orderBy('createdAt', 'desc')
@@ -246,8 +250,11 @@ function goBackToGrades() {
 
 function renderContent() {
     const lessonsList = document.getElementById('lessons-list');
+    const packagesList = document.getElementById('packages-list');
     const examsList = document.getElementById('exams-list');
     const filesList = document.getElementById('files-list');
+
+    if (!lessonsList || !packagesList || !examsList || !filesList) return;
 
     const isSystemUnlocked = localStorage.getItem('isSystemUnlocked') === 'true';
 
@@ -323,6 +330,38 @@ function renderContent() {
                 </div>
             `;
         }
+    });
+
+    // Packages
+    const filteredPackages = appData.packages.filter(branchFilter);
+    packagesList.innerHTML = filteredPackages.length ? '' : '<p class="empty-msg">لا يوجد باقات مضافة في هذا الفرع حالياً</p>';
+
+    filteredPackages.forEach(pkg => {
+        const videosHtml = pkg.videos.map((v, idx) => `
+            <div class="pkg-video-item">
+                <i class="fas fa-play-circle"></i>
+                <span>${idx + 1}. ${v.title}</span>
+            </div>
+        `).join('');
+
+        packagesList.innerHTML += `
+            <div class="item-card package-card">
+                <div class="package-badge">${pkg.videos.length} فيديو</div>
+                <div class="item-info">
+                    <h4>${pkg.title}</h4>
+                    <p style="margin-bottom: 15px;">${pkg.desc}</p>
+                    <div class="pkg-videos-preview">
+                        ${videosHtml}
+                    </div>
+                    <div class="pkg-footer">
+                        <div class="pkg-price">${pkg.price} ج.م</div>
+                        <button class="btn-primary" onclick="showSubscriptionInfo('${pkg.title}', '${pkg.price}')">
+                            <i class="fas fa-shopping-cart"></i> اشترك الآن
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
     });
 
     // Exams
@@ -837,6 +876,97 @@ function renderAdminSection(section) {
                 </table>
             </div>
         `;
+    } else if (section === 'add-package') {
+        main.innerHTML = `
+            <h3>إضافة باقة تعليمية جديدة 📦</h3>
+            <div class="admin-form-container">
+                <div class="form-group">
+                    <label>عنوان الباقة</label>
+                    <input type="text" id="pkg-title" placeholder="مثلاً: باقة المراجعة النهائية">
+                </div>
+                <div class="form-group">
+                    <label>وصف الباقة</label>
+                    <input type="text" id="pkg-desc" placeholder="شرح مبسط لمحتوى الباقة">
+                </div>
+                <div class="form-group">
+                    <label>سعر الباقة (ج.م)</label>
+                    <input type="number" id="pkg-price" placeholder="300">
+                </div>
+                <div class="form-group">
+                    <label>الفرع / المادة</label>
+                    <select id="pkg-branch">
+                        ${MATH_BRANCHES.filter(b => b !== 'الكل').map(b => `<option value="${b}">${b}</option>`).join('')}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>المرحلة</label>
+                    <select id="pkg-grade" onchange="updateAdminBranches('pkg')">
+                        <option value="3mid">الصف الثالث الإعدادي</option>
+                        <option value="1sec">الصف الأول الثانوي</option>
+                        <option value="2sec">الصف الثاني الثانوي</option>
+                        <option value="3sec-sci">الصف الثالث الثانوي (علمي)</option>
+                        <option value="3sec-lit">الصف الثالث الثانوي (أدبي)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div id="pkg-videos-container">
+                <h4>فيديوهات الباقة</h4>
+                <div class="pkg-video-block glass">
+                    <div class="form-group">
+                        <label>عنوان الفيديو 1</label>
+                        <input type="text" class="v-title" placeholder="اسم الفيديو">
+                    </div>
+                    <div class="form-group">
+                        <label>رابط الفيديو 1</label>
+                        <input type="text" class="v-url" placeholder="https://youtube.com/...">
+                    </div>
+                </div>
+            </div>
+            
+            <div class="hero-btns" style="margin-top: 20px;">
+                <button class="btn-secondary" onclick="addNewPkgVideoBlock()">
+                    <i class="fas fa-plus"></i> إضافة فيديو للباقة
+                </button>
+                <button class="btn-primary" onclick="saveNewPackage()">
+                    <i class="fas fa-save"></i> حفظ الباقة
+                </button>
+            </div>
+
+            <hr style="margin: 40px 0; border: 1px solid var(--glass-border);">
+            
+            <h3>إدارة الباقات المضافة</h3>
+            <div class="vouchers-table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>العنوان</th>
+                            <th>المرحلة</th>
+                            <th>الفرع</th>
+                            <th>السعر</th>
+                            <th>الفيديوهات</th>
+                            <th>إجراءات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${appData.packages.slice().reverse().map(p => `
+                            <tr>
+                                <td>${p.title}</td>
+                                <td>${appData.grades[p.grade]?.title || p.grade}</td>
+                                <td>${p.branch}</td>
+                                <td>${p.price} ج.م</td>
+                                <td>${p.videos?.length || 0} فيديو</td>
+                                <td>
+                                    <button class="btn-primary" style="background: #ef4444; padding: 5px 10px;" onclick="deleteItem('packages', '${p.id}')">
+                                        <i class="fas fa-trash"></i> حذف
+                                    </button>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+        `;
     } else if (section === 'vouchers') {
         const unusedCount = appData.vouchers.filter(v => !v.isUsed).length;
 
@@ -998,8 +1128,112 @@ function renderAdminSection(section) {
     }
 
     if (section === 'add-lesson') updateAdminBranches('lesson');
+    if (section === 'add-package') updateAdminBranches('pkg');
     if (section === 'add-exam') updateAdminBranches('exam');
     if (section === 'add-file') updateAdminBranches('file');
+}
+
+let pkgVideoCount = 1;
+function addNewPkgVideoBlock() {
+    pkgVideoCount++;
+    const container = document.getElementById('pkg-videos-container');
+    const block = document.createElement('div');
+    block.className = 'pkg-video-block glass';
+    block.innerHTML = `
+        <div class="form-group">
+            <label>عنوان الفيديو ${pkgVideoCount}</label>
+            <input type="text" class="v-title" placeholder="اسم الفيديو">
+        </div>
+        <div class="form-group">
+            <label>رابط الفيديو ${pkgVideoCount}</label>
+            <input type="text" class="v-url" placeholder="https://youtube.com/...">
+        </div>
+    `;
+    container.appendChild(block);
+}
+
+async function saveNewPackage() {
+    const title = document.getElementById('pkg-title').value;
+    const desc = document.getElementById('pkg-desc').value;
+    const price = document.getElementById('pkg-price').value;
+    const grade = document.getElementById('pkg-grade').value;
+    const branch = document.getElementById('pkg-branch').value;
+    const blocks = document.querySelectorAll('.pkg-video-block');
+
+    if (!title || !price) return alert('برجاء إدخال عنوان وسعر الباقة');
+
+    let videos = [];
+    blocks.forEach(block => {
+        const vTitle = block.querySelector('.v-title').value;
+        const vUrl = block.querySelector('.v-url').value;
+        if (vTitle && vUrl) videos.push({ title: vTitle, url: vUrl });
+    });
+
+    if (videos.length === 0) return alert('برجاء إضافة فيديو واحد على الأقل للباقة');
+
+    const newPackage = {
+        title, desc, price, grade, branch, videos,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    };
+
+    try {
+        const docRef = await db.collection('packages').add(newPackage);
+        newPackage.id = docRef.id;
+        appData.packages.push(newPackage);
+        alert('تم حفظ الباقة بنجاح');
+        if (currentState.selectedGrade === grade) renderContent();
+        pkgVideoCount = 1;
+        renderAdminSection('add-package');
+    } catch (error) {
+        console.error("Error saving package:", error);
+        alert('حدث خطأ أثناء حفظ الباقة');
+    }
+}
+
+function showSubscriptionInfo(title, price) {
+    const phone = "01550366657";
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.style.display = 'flex';
+    modal.style.zIndex = '10000';
+    modal.innerHTML = `
+        <div class="modal-content glass" style="max-width: 400px; text-align: center;">
+            <div style="font-size: 3rem; color: #22c55e; margin-bottom: 20px;">
+                <i class="fab fa-vimeo-v" style="background: #ef4444; color: white; border-radius: 50%; width: 60px; height: 60px; display: inline-flex; align-items: center; justify-content: center; font-size: 1.5rem;">V</i>
+            </div>
+            <h3>الاشتراك في باقة: ${title}</h3>
+            <p style="margin: 15px 0;">للاشتراك، برجاء تحويل مبلغ <strong style="color: var(--primary-light); font-size: 1.2rem;">${price} ج.م</strong> عبر فودافون كاش للرقم التالي:</p>
+            
+            <div style="background: rgba(255,255,255,0.05); padding: 15px; border-radius: 10px; margin-bottom: 20px; display: flex; align-items: center; justify-content: center; gap: 15px;">
+                <span id="payment-phone" style="font-size: 1.5rem; font-family: monospace; letter-spacing: 2px;">${phone}</span>
+                <button onclick="copyToClipboard('${phone}')" class="btn-icon" title="نسخ الرقم">
+                    <i class="fas fa-copy"></i>
+                </button>
+            </div>
+
+            <p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 20px;">بعد التحويل، أرسل صورة إيصال التحويل عبر واتساب لنفس الرقم لتفعيل الباقة لك.</p>
+            
+            <div style="display: flex; gap: 10px;">
+                <button class="btn-primary w-100" onclick="contactSupportWhatsApp('${phone}', '${title}')">
+                    <i class="fab fa-whatsapp"></i> مراسلة واتساب لتأكيد الدفع
+                </button>
+                <button class="btn-outline" onclick="this.closest('.modal').remove()">إغلاق</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+}
+
+function copyToClipboard(text) {
+    navigator.clipboard.writeText(text).then(() => {
+        alert('تم نسخ الرقم بنجاح');
+    });
+}
+
+function contactSupportWhatsApp(phone, pkgTitle) {
+    const student = JSON.parse(localStorage.getItem('studentSession') || '{}');
+    const msg = `أهلاً يا مستر، أنا الطالب ${student.name || ''}%0Aلقد قمت بتحويل تكلفة باقة *${pkgTitle}*%0Aوهذا إيصال التحويل لتفعيل الباقة.`;
+    window.open(`https://wa.me/2${phone}?text=${msg}`, '_blank');
 }
 
 let questionCount = 1;
@@ -1499,6 +1733,7 @@ async function deleteItem(collection, id) {
         // إعادة رندرة القسم المفتوح في لوحة التحكم
         const sectionMap = {
             'lessons': 'add-lesson',
+            'packages': 'add-package',
             'exams': 'add-exam',
             'files': 'add-file'
         };
@@ -1608,7 +1843,7 @@ async function resetFullSystem() {
         return;
     }
 
-    const collections = ['lessons', 'exams', 'files', 'vouchers', 'students', 'visits'];
+    const collections = ['lessons', 'packages', 'exams', 'files', 'vouchers', 'students', 'visits'];
 
     try {
         // Show loading state
