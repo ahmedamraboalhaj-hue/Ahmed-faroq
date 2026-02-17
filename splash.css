@@ -52,9 +52,14 @@
 
 .orbital-ring {
     position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    margin: auto;
     border-radius: 50%;
     border: 1px solid rgba(255, 255, 255, 0.1);
-    box-shadow: 0 0 10px rgba(99, 102, 241, 0.2);
+    box-shadow: 0 0 10px rgba(168, 85, 247, 0.2);
 }
 
 .ring-1 {
@@ -81,6 +86,10 @@
 }
 
 .core-glow {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     font-size: 3rem;
     color: white;
     text-shadow: 0 0 20px #a855f7, 0 0 40px #7c3aed;
@@ -89,7 +98,7 @@
 }
 
 .scanner-line {
-    position: a bsolute;
+    position: absolute;
     top: 0;
     left: 0;
     width: 100%;

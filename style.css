@@ -1705,8 +1705,8 @@ select:focus {
 
 .image-frame {
     width: 100%;
-    aspect-ratio: 0.85;
-    /* Better for a portrait image */
+    aspect-ratio: 1;
+    /* Square ratio for the new poster */
     background: var(--gradient-1);
     border-radius: 40px;
     display: flex;
