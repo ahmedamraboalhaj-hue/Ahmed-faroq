@@ -337,27 +337,45 @@ function renderContent() {
     packagesList.innerHTML = filteredPackages.length ? '' : '<p class="empty-msg">لا يوجد باقات مضافة في هذا الفرع حالياً</p>';
 
     filteredPackages.forEach(pkg => {
+        const isPkgUnlocked = localStorage.getItem(`pkg_unlocked_${pkg.id}`) === 'true';
+
         const videosHtml = pkg.videos.map((v, idx) => `
-            <div class="pkg-video-item">
-                <i class="fas fa-play-circle"></i>
+            <div class="pkg-video-item ${isPkgUnlocked ? 'unlocked' : 'locked'}" ${isPkgUnlocked ? `onclick="openPackageVideo('${v.url}', '${v.title}')"` : ''}>
+                <i class="fas ${isPkgUnlocked ? 'fa-play-circle' : 'fa-lock'}"></i>
                 <span>${idx + 1}. ${v.title}</span>
             </div>
         `).join('');
 
+        const lockOverlay = !isPkgUnlocked ? `
+            <div class="pkg-lock-overlay">
+                <div class="voucher-group">
+                    <input type="text" class="voucher-input pkg-v-input" placeholder="كود التفعيل">
+                    <button class="btn-primary btn-sm" onclick="checkPackageVoucher(this, '${pkg.id}')">تفعيل</button>
+                </div>
+            </div>
+        ` : '';
+
         packagesList.innerHTML += `
-            <div class="item-card package-card">
+            <div class="item-card package-card ${isPkgUnlocked ? 'is-unlocked' : 'is-locked'}">
                 <div class="package-badge">${pkg.videos.length} فيديو</div>
                 <div class="item-info">
                     <h4>${pkg.title}</h4>
                     <p style="margin-bottom: 15px;">${pkg.desc}</p>
                     <div class="pkg-videos-preview">
                         ${videosHtml}
+                        ${lockOverlay}
                     </div>
                     <div class="pkg-footer">
-                        <div class="pkg-price">${pkg.price} ج.م</div>
-                        <button class="btn-primary" onclick="showSubscriptionInfo('${pkg.title}', '${pkg.price}')">
-                            <i class="fas fa-shopping-cart"></i> اشترك الآن
-                        </button>
+                        <div class="pkg-price">${isPkgUnlocked ? '<span class="unlocked-text"><i class="fas fa-check-circle"></i> تم التفعيل</span>' : pkg.price + ' ج.م'}</div>
+                        ${!isPkgUnlocked ? `
+                            <button class="btn-primary" onclick="showSubscriptionInfo('${pkg.title}', '${pkg.price}')">
+                                <i class="fas fa-shopping-cart"></i> اشترك الآن
+                            </button>
+                        ` : `
+                            <button class="btn-primary" style="background: var(--gradient-2); color: #000;" onclick="scrollToSection('packages-list')">
+                                <i class="fas fa-eye"></i> مشاهدة المحتوى
+                            </button>
+                        `}
                     </div>
                 </div>
             </div>
@@ -1188,6 +1206,51 @@ async function saveNewPackage() {
         console.error("Error saving package:", error);
         alert('حدث خطأ أثناء حفظ الباقة');
     }
+}
+
+async function checkPackageVoucher(btn, pkgId) {
+    const input = btn.previousElementSibling;
+    const code = input.value.trim().toUpperCase();
+    if (!code) return alert('برجاء إدخال الكود');
+
+    // Find in appData
+    const voucher = appData.vouchers.find(v => v.code === code);
+
+    if (voucher) {
+        if (voucher.isUsed) return alert('هذا الكود تم استخدامه من قبل');
+        if (voucher.isActive === false) return alert('تم إغلاق هذا الكود من قبل الإدارة');
+
+        try {
+            await db.collection('vouchers').doc(voucher.id).update({
+                isUsed: true,
+                usedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                targetId: pkgId // Optional: track what it unlocked
+            });
+            voucher.isUsed = true;
+
+            localStorage.setItem(`pkg_unlocked_${pkgId}`, 'true');
+            alert('تم تفعيل الباقة بنجاح! يمكنك الآن مشاهدة الفيديوهات.');
+            renderContent();
+        } catch (error) {
+            console.error("Error updating voucher:", error);
+            alert('فشل تفعيل الكود، تأكد من الاتصال بالإنترنت');
+        }
+    } else {
+        alert('كود تفعيل غير صحيح');
+    }
+}
+
+function openPackageVideo(url, title) {
+    const modal = document.getElementById('intro-modal');
+    const videoId = getYouTubeId(url);
+    modal.style.display = 'flex';
+
+    if (ytPlayers['intro']) {
+        ytPlayers['intro'].loadVideoById(videoId);
+    } else {
+        initYTPlayer('intro', videoId, 'intro-video-iframe');
+    }
+    // You could also update a title in the modal if needed
 }
 
 function showSubscriptionInfo(title, price) {

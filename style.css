@@ -2422,3 +2422,66 @@ select:focus {
 .package-card {
     animation: slideUpFade 0.6s ease-out forwards;
 }
+
+.pkg-video-item.unlocked {
+    cursor: pointer;
+    background: rgba(34, 197, 94, 0.05);
+    padding: 8px 12px;
+    border-radius: 8px;
+    margin-bottom: 5px;
+    transition: 0.3s;
+    border: 1px solid transparent;
+}
+
+.pkg-video-item.unlocked:hover {
+    background: rgba(34, 197, 94, 0.15);
+    border-color: #22c55e;
+    transform: translateX(-5px);
+}
+
+.pkg-video-item.locked {
+    opacity: 0.6;
+    padding: 8px 12px;
+}
+
+.pkg-lock-overlay {
+    margin-top: 15px;
+    padding: 10px;
+    background: rgba(0, 0, 0, 0.4);
+    border-radius: 12px;
+    border: 1px solid var(--glass-border);
+}
+
+.voucher-group {
+    display: flex;
+    gap: 8px;
+}
+
+.pkg-v-input {
+    font-size: 0.9rem;
+    padding: 8px;
+    letter-spacing: 1px;
+}
+
+.btn-sm {
+    padding: 8px 15px;
+    font-size: 0.85rem;
+}
+
+.unlocked-text {
+    color: #22c55e;
+    font-size: 1rem;
+    font-weight: 700;
+}
+
+.is-unlocked {
+    border-color: #22c55e !important;
+}
+
+.pkg-videos-preview {
+    position: relative;
+    overflow: hidden;
+    /* Ensure overlay and list fit well */
+    display: flex;
+    flex-direction: column;
+}
