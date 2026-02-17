@@ -1,17 +1,17 @@
 :root {
-    --primary-color: #d4af37;
-    --primary-light: #f1c40f;
-    --primary-dark: #8a6d3b;
+    --primary-color: #a855f7;
+    --primary-light: #d8b4fe;
+    --primary-dark: #7c3aed;
     --secondary-color: #ffffff;
     --dark-bg: #050505;
     --card-bg: rgba(15, 23, 42, 0.6);
-    --glass-border: rgba(212, 175, 55, 0.2);
+    --glass-border: rgba(168, 85, 247, 0.2);
     --text-primary: #ffffff;
     --text-muted: #a0a0a0;
-    --gradient-1: linear-gradient(135deg, #d4af37 0%, #8a6d3b 100%);
-    --gradient-2: linear-gradient(135deg, #ffffff 0%, #d4af37 100%);
-    --glow-color: rgba(212, 175, 55, 0.5);
-    --shadow-lg: 0 10px 40px rgba(0, 0, 0, 0.8), 0 0 20px rgba(212, 175, 55, 0.1);
+    --gradient-1: linear-gradient(135deg, #a855f7 0%, #7c3aed 100%);
+    --gradient-2: linear-gradient(135deg, #ffffff 0%, #a855f7 100%);
+    --glow-color: rgba(168, 85, 247, 0.5);
+    --shadow-lg: 0 10px 40px rgba(0, 0, 0, 0.8), 0 0 20px rgba(168, 85, 247, 0.1);
 }
 
 * {
