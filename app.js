@@ -294,70 +294,84 @@ function renderContent() {
 
     // Lessons
     const filteredLessons = appData.lessons.filter(branchFilter);
-    lessonsList.innerHTML = filteredLessons.length ? '' : '<p class="empty-msg">لا يوجد دروس مضافة في هذا الفرع حالياً</p>';
 
     // Check if THIS SPECIFIC GRADE is unlocked
     const isGradeUnlocked = localStorage.getItem(`unlocked_${currentState.selectedGrade}`) === 'true';
 
-    filteredLessons.forEach(lesson => {
-        const wrapperId = `vid-wrapper-${lesson.id}`;
-        const playerId = `player-${lesson.id}`;
-        if (isGradeUnlocked) {
-            lessonsList.innerHTML += `
-                <div class="item-card">
-                    <div class="video-preview-wrapper" id="${wrapperId}">
-                        <div id="${playerId}"></div>
-                        <div class="video-overlay-shield total-shield" onclick="togglePlayPause('${lesson.id}')" ondblclick="toggleFullscreen('${wrapperId}')">
-                            <div class="play-overlay">
-                                <i class="fas fa-play"></i>
-                            </div>
-                            <div class="shield-top"></div>
-                            <div class="shield-center-top"></div>
-                            <div class="shield-bottom-right"></div>
-                            <div class="shield-bottom-left"></div>
-                            <div class="custom-controls">
-                                <button class="custom-seek-btn" onclick="event.stopPropagation(); seek('${lesson.id}', -10)" title="تراجع 10 ثواني">
-                                    <i class="fas fa-undo"></i>
-                                </button>
-                                <div class="progress-container" onclick="event.stopPropagation(); handleSeek(event, '${lesson.id}')">
-                                    <div class="progress-bar" id="progress-${lesson.id}"></div>
+    if (filteredLessons.length === 0) {
+        lessonsList.innerHTML = '<p class="empty-msg">لا يوجد دروس مضافة في هذا الفرع حالياً</p>';
+    } else {
+        // Build ALL HTML first, then set innerHTML ONCE, then init players
+        let lessonsHTML = '';
+        const lessonsToInit = [];
+
+        filteredLessons.forEach(lesson => {
+            const wrapperId = `vid-wrapper-${lesson.id}`;
+            const playerId = `player-${lesson.id}`;
+            if (isGradeUnlocked) {
+                lessonsHTML += `
+                    <div class="item-card">
+                        <div class="video-preview-wrapper" id="${wrapperId}">
+                            <div id="${playerId}"></div>
+                            <div class="video-overlay-shield total-shield" onclick="togglePlayPause('${lesson.id}')" ondblclick="toggleFullscreen('${wrapperId}')">
+                                <div class="play-overlay">
+                                    <i class="fas fa-play"></i>
                                 </div>
-                                <button class="custom-seek-btn" onclick="event.stopPropagation(); seek('${lesson.id}', 10)" title="تقدم 10 ثواني">
-                                    <i class="fas fa-redo"></i>
-                                </button>
-                                <button class="custom-fs-btn" title="تكبير الشاشة" onclick="event.stopPropagation(); toggleFullscreen('${wrapperId}')">
-                                    <i class="fas fa-expand"></i>
-                                </button>
+                                <div class="shield-top"></div>
+                                <div class="shield-center-top"></div>
+                                <div class="shield-bottom-right"></div>
+                                <div class="shield-bottom-left"></div>
+                                <div class="custom-controls">
+                                    <button class="custom-seek-btn" onclick="event.stopPropagation(); seek('${lesson.id}', -10)" title="تراجع 10 ثواني">
+                                        <i class="fas fa-undo"></i>
+                                    </button>
+                                    <div class="progress-container" onclick="event.stopPropagation(); handleSeek(event, '${lesson.id}')">
+                                        <div class="progress-bar" id="progress-${lesson.id}"></div>
+                                    </div>
+                                    <button class="custom-seek-btn" onclick="event.stopPropagation(); seek('${lesson.id}', 10)" title="تقدم 10 ثواني">
+                                        <i class="fas fa-redo"></i>
+                                    </button>
+                                    <button class="custom-fs-btn" title="تكبير الشاشة" onclick="event.stopPropagation(); toggleFullscreen('${wrapperId}')">
+                                        <i class="fas fa-expand"></i>
+                                    </button>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                    <div class="item-info">
-                        <h4>${lesson.title}</h4>
-                        <p>${lesson.desc}</p>
-                    </div>
-                </div>
-            `;
-            // Initialize player after element is in DOM
-            setTimeout(() => initYTPlayer(lesson.id, getYouTubeId(lesson.url)), 100);
-        } else {
-            lessonsList.innerHTML += `
-                <div class="item-card locked-card" style="position: relative;">
-                    <div class="video-preview-wrapper" style="background: #121212; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 200px;">
-                        <i class="fas fa-lock" style="font-size: 3rem; color: var(--primary-color); margin-bottom: 15px;"></i>
-                        <p style="color: white; font-weight: 700; margin-bottom: 15px;">هذا الفيديو محمي بكود تفعيل</p>
-                        <div style="display: flex; gap: 10px; width: 80%;">
-                            <input type="text" class="voucher-input" placeholder="أدخل الكود هنا" style="flex: 1; padding: 8px; border-radius: 5px; border: 1px solid var(--primary-color); background: #000; color: #fff;">
-                            <button class="btn-primary" onclick="checkVoucher(this)">تفعيل</button>
+                        <div class="item-info">
+                            <h4>${lesson.title}</h4>
+                            <p>${lesson.desc}</p>
                         </div>
                     </div>
-                    <div class="item-info">
-                        <h4>${lesson.title}</h4>
-                        <p>${lesson.desc}</p>
+                `;
+                lessonsToInit.push({ id: lesson.id, url: lesson.url });
+            } else {
+                lessonsHTML += `
+                    <div class="item-card locked-card" style="position: relative;">
+                        <div class="video-preview-wrapper" style="background: #121212; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 200px;">
+                            <i class="fas fa-lock" style="font-size: 3rem; color: var(--primary-color); margin-bottom: 15px;"></i>
+                            <p style="color: white; font-weight: 700; margin-bottom: 15px;">هذا الفيديو محمي بكود تفعيل</p>
+                            <div style="display: flex; gap: 10px; width: 80%;">
+                                <input type="text" class="voucher-input" placeholder="أدخل الكود هنا" style="flex: 1; padding: 8px; border-radius: 5px; border: 1px solid var(--primary-color); background: #000; color: #fff;">
+                                <button class="btn-primary" onclick="checkVoucher(this)">تفعيل</button>
+                            </div>
+                        </div>
+                        <div class="item-info">
+                            <h4>${lesson.title}</h4>
+                            <p>${lesson.desc}</p>
+                        </div>
                     </div>
-                </div>
-            `;
-        }
-    });
+                `;
+            }
+        });
+
+        // Set HTML once - this prevents DOM destruction of already-created players
+        lessonsList.innerHTML = lessonsHTML;
+
+        // Now init all players after DOM is stable
+        lessonsToInit.forEach((lesson, index) => {
+            setTimeout(() => initYTPlayer(lesson.id, getYouTubeId(lesson.url)), 200 + index * 100);
+        });
+    }
 
     // Packages
     const filteredPackages = appData.packages.filter(branchFilter);
