@@ -112,26 +112,44 @@ function checkStudentSession() {
 
 async function loadInitialData() {
     try {
-        const lessonsSnap = await db.collection('lessons').get();
-        appData.lessons = lessonsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        // Real-time listeners for ALL collections so content updates instantly
+        db.collection('lessons').onSnapshot(snapshot => {
+            appData.lessons = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            if (currentState.selectedGrade) renderContent();
+            const activeSection = document.querySelector('.admin-nav li.active')?.dataset.section;
+            if (currentState.isAdmin && activeSection === 'add-lesson') renderAdminSection('add-lesson');
+        });
 
-        const examsSnap = await db.collection('exams').get();
-        appData.exams = examsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        db.collection('packages').onSnapshot(snapshot => {
+            appData.packages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            if (currentState.selectedGrade) renderContent();
+            const activeSection = document.querySelector('.admin-nav li.active')?.dataset.section;
+            if (currentState.isAdmin && activeSection === 'add-package') renderAdminSection('add-package');
+        });
 
-        const filesSnap = await db.collection('files').get();
-        appData.files = filesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        db.collection('exams').onSnapshot(snapshot => {
+            appData.exams = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            if (currentState.selectedGrade) renderContent();
+            const activeSection = document.querySelector('.admin-nav li.active')?.dataset.section;
+            if (currentState.isAdmin && activeSection === 'add-exam') renderAdminSection('add-exam');
+        });
 
-        const vouchersSnap = await db.collection('vouchers').get();
-        appData.vouchers = vouchersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        db.collection('files').onSnapshot(snapshot => {
+            appData.files = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            if (currentState.selectedGrade) renderContent();
+            const activeSection = document.querySelector('.admin-nav li.active')?.dataset.section;
+            if (currentState.isAdmin && activeSection === 'add-file') renderAdminSection('add-file');
+        });
 
-        const packagesSnap = await db.collection('packages').get();
-        appData.packages = packagesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        db.collection('vouchers').onSnapshot(snapshot => {
+            appData.vouchers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            const activeSection = document.querySelector('.admin-nav li.active')?.dataset.section;
+            if (currentState.isAdmin && activeSection === 'vouchers') renderAdminSection('vouchers');
+        });
 
-        // Real-time listeners for meaningful admin updates
         db.collection('students').orderBy('createdAt', 'desc')
             .onSnapshot(snapshot => {
                 appData.students = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                // Update dashboard if currently viewing statistics or students list
                 const activeSection = document.querySelector('.admin-nav li.active')?.dataset.section;
                 if (currentState.isAdmin && (activeSection === 'dashboard' || activeSection === 'students-list')) {
                     renderAdminSection(activeSection);
@@ -146,6 +164,15 @@ async function loadInitialData() {
                     renderAdminSection(activeSection);
                 }
             });
+
+        // Wait for initial data load before proceeding
+        await Promise.all([
+            db.collection('lessons').get(),
+            db.collection('packages').get(),
+            db.collection('exams').get(),
+            db.collection('files').get(),
+            db.collection('vouchers').get(),
+        ]);
 
     } catch (error) {
         console.error("Error loading data from Firebase:", error);
