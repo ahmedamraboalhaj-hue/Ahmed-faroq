@@ -2479,9 +2479,353 @@ select:focus {
 }
 
 .pkg-videos-preview {
-    position: relative;
-    overflow: hidden;
-    /* Ensure overlay and list fit well */
-    display: flex;
-    flex-direction: column;
-}
+    .custom-seek-btn:hover {
+        background: var(--primary-color);
+        transform: scale(1.1);
+    }
+
+    .custom-fs-btn:hover {
+        background: var(--primary-color);
+        transform: scale(1.1);
+    }
+
+    .stat-item:hover {
+        transform: translateY(-10px);
+        background: rgba(212, 175, 55, 0.08);
+        border-color: var(--primary-color);
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+    }
+
+    /* --- Packages Section Styles --- */
+    .package-card {
+        position: relative;
+        border: 1px solid var(--glass-border);
+        background: linear-gradient(135deg, rgba(15, 23, 42, 0.8) 0%, rgba(30, 41, 59, 0.4) 100%);
+        backdrop-filter: blur(20px);
+        transition: 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        display: flex;
+        flex-direction: column;
+    }
+
+    .package-card:hover {
+        transform: translateY(-10px) scale(1.02);
+        border-color: var(--primary-color);
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4), 0 0 20px var(--glow-color);
+    }
+
+    .package-badge {
+        position: absolute;
+        top: 15px;
+        right: 15px;
+        background: var(--gradient-1);
+        color: white;
+        padding: 5px 12px;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 700;
+        z-index: 2;
+    }
+
+    .pkg-videos-preview {
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 12px;
+        padding: 15px;
+        margin-bottom: 20px;
+        max-height: 150px;
+        overflow-y: auto;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .pkg-video-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 8px;
+        font-size: 0.85rem;
+        color: var(--text-muted);
+    }
+
+    .pkg-video-item i {
+        color: var(--primary-light);
+    }
+
+    .pkg-footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-top: auto;
+        padding-top: 15px;
+        border-top: 1px solid var(--glass-border);
+    }
+
+    .pkg-price {
+        font-size: 1.5rem;
+        font-weight: 900;
+        color: var(--primary-light);
+        text-shadow: 0 0 10px rgba(168, 85, 247, 0.3);
+    }
+
+    .btn-icon {
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid var(--glass-border);
+        color: white;
+        width: 35px;
+        height: 35px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: 0.3s;
+    }
+
+    .btn-icon:hover {
+        background: var(--primary-color);
+        transform: scale(1.1);
+    }
+
+    .pkg-videos-preview::-webkit-scrollbar {
+        width: 4px;
+    }
+
+    .pkg-videos-preview::-webkit-scrollbar-thumb {
+        background: var(--primary-color);
+        border-radius: 10px;
+    }
+
+    .pkg-video-block {
+        margin-bottom: 15px;
+        padding: 15px;
+        background: rgba(255, 255, 255, 0.02);
+        border-radius: 10px;
+        border: 1px solid var(--glass-border);
+    }
+
+    /* Animations for new elements */
+    @keyframes slideUpFade {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .package-card {
+        animation: slideUpFade 0.6s ease-out forwards;
+    }
+
+    .pkg-video-item.unlocked {
+        cursor: pointer;
+        background: rgba(34, 197, 94, 0.05);
+        padding: 8px 12px;
+        border-radius: 8px;
+        margin-bottom: 5px;
+        transition: 0.3s;
+        border: 1px solid transparent;
+    }
+
+    .pkg-video-item.unlocked:hover {
+        background: rgba(34, 197, 94, 0.15);
+        border-color: #22c55e;
+        transform: translateX(-5px);
+    }
+
+    .pkg-video-item.locked {
+        opacity: 0.6;
+        padding: 8px 12px;
+    }
+
+    .pkg-lock-overlay {
+        margin-top: 15px;
+        padding: 10px;
+        background: rgba(0, 0, 0, 0.4);
+        border-radius: 12px;
+        border: 1px solid var(--glass-border);
+    }
+
+    .voucher-group {
+        display: flex;
+        gap: 8px;
+    }
+
+    .pkg-v-input {
+        font-size: 0.9rem;
+        padding: 8px;
+        letter-spacing: 1px;
+    }
+
+    .btn-sm {
+        padding: 8px 15px;
+        font-size: 0.85rem;
+    }
+
+    .unlocked-text {
+        color: #22c55e;
+        font-size: 1rem;
+        font-weight: 700;
+    }
+
+    .is-unlocked {
+        border-color: #22c55e !important;
+    }
+
+    .pkg-videos-preview {
+        position: relative;
+        overflow: hidden;
+        /* Ensure overlay and list fit well */
+        display: flex;
+        flex-direction: column;
+    }
+
+    /* Competition Section Styles */
+    .competition-container {
+        background: var(--card-bg);
+        border: 1px solid var(--glass-border);
+        border-radius: 20px;
+        padding: 40px;
+        backdrop-filter: blur(15px);
+        overflow: hidden;
+        position: relative;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+    }
+
+    .competition-content {
+        display: flex;
+        align-items: center;
+        gap: 40px;
+        justify-content: space-between;
+    }
+
+    .competition-details {
+        flex: 2;
+    }
+
+    .competition-details h3 {
+        margin-bottom: 20px;
+        font-size: 1.8rem;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .competition-text {
+        font-size: 1.1rem;
+        color: var(--text-muted);
+        margin-bottom: 30px;
+        line-height: 1.8;
+    }
+
+    .competition-features {
+        display: grid;
+        gap: 15px;
+        margin-bottom: 30px;
+    }
+
+    .comp-feature {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        background: rgba(255, 255, 255, 0.05);
+        padding: 15px 20px;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        transition: 0.3s;
+    }
+
+    .comp-feature:hover {
+        background: rgba(255, 255, 255, 0.08);
+        transform: translateX(-5px);
+        border-color: var(--primary-color);
+    }
+
+    .comp-feature i {
+        font-size: 1.5rem;
+        color: gold;
+        width: 30px;
+        text-align: center;
+    }
+
+    .competition-visual {
+        flex: 1;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        position: relative;
+    }
+
+    .trophy-container {
+        position: relative;
+        width: 200px;
+        height: 200px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .floating-trophy {
+        font-size: 8rem;
+        color: gold;
+        filter: drop-shadow(0 0 20px rgba(255, 215, 0, 0.4));
+        animation: trophy-float 3s ease-in-out infinite;
+        z-index: 2;
+    }
+
+    .glow-effect {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 150px;
+        height: 150px;
+        background: radial-gradient(circle, rgba(255, 215, 0, 0.2) 0%, transparent 70%);
+        filter: blur(20px);
+        animation: pulse-glow 2s infinite alternate;
+    }
+
+    @keyframes trophy-float {
+
+        0%,
+        100% {
+            transform: translateY(0);
+        }
+
+        50% {
+            transform: translateY(-15px);
+        }
+    }
+
+    @keyframes pulse-glow {
+        0% {
+            transform: translate(-50%, -50%) scale(1);
+            opacity: 0.5;
+        }
+
+        100% {
+            transform: translate(-50%, -50%) scale(1.2);
+            opacity: 0.8;
+        }
+    }
+
+    @media (max-width: 968px) {
+        .competition-content {
+            flex-direction: column-reverse;
+            text-align: center;
+        }
+
+        .competition-details h3 {
+            justify-content: center;
+        }
+
+        .comp-feature {
+            flex-direction: column;
+            text-align: center;
+        }
+
+        .comp-feature:hover {
+            transform: translateY(-5px);
+        }
+    }

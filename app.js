@@ -79,6 +79,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         setTimeout(() => document.getElementById('loader').style.display = 'none', 500);
     }, 1000);
     initEventListeners();
+    initAntiPiracy(); // Added Anti-Piracy Init
     checkStudentSession();
     initScrollReveal();
 });
@@ -107,7 +108,79 @@ function checkStudentSession() {
     } else if (session) {
         const student = JSON.parse(session);
         logVisit(student);
+        showSecurityWatermark(student);
     }
+}
+
+// --- Anti-Piracy & Security System ---
+function initAntiPiracy() {
+    // 1. Block Context Menu (Right Click)
+    document.addEventListener('contextmenu', e => e.preventDefault());
+
+    // 2. Block Common Shortcuts (PrintScreen, Ctrl+P, Ctrl+S, Ctrl+Shift+I, F12)
+    document.addEventListener('keydown', (e) => {
+        if (
+            e.key === 'PrintScreen' ||
+            (e.ctrlKey && (e.key === 'p' || e.key === 's' || e.key === 'u')) || // Print, Save, Source
+            (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'C' || e.key === 'J')) || // DevTools
+            e.key === 'F12'
+        ) {
+            e.preventDefault();
+            warnUser('غير مسموح بأخذ لقطات شاشة أو نسخ المحتوى!');
+            toggleBlackout(true);
+            setTimeout(() => toggleBlackout(false), 2000); // 2s penalty
+            return false;
+        }
+    });
+
+    // 3. Clear Clipboard on Copy Attempt
+    document.addEventListener('copy', (e) => {
+        e.preventDefault();
+        e.clipboardData.setData('text/plain', 'تم مسح المحتوى - حقوق الملكية محفوظة للمنصة.');
+    });
+
+    // 4. Detect Screen Width Changes (DevTools open side) - Simple Check
+    window.addEventListener('resize', () => {
+        if (window.outerWidth - window.innerWidth > 100 || window.outerHeight - window.innerHeight > 100) {
+            // Potential DevTools open
+        }
+    });
+}
+
+function showSecurityWatermark(student) {
+    // Remove existing if any
+    const existing = document.querySelector('.security-watermark');
+    if (existing) existing.remove();
+
+    if (!student) return;
+
+    const watermark = document.createElement('div');
+    watermark.className = 'security-watermark';
+    // Display Name and a unique ID (Phone)
+    watermark.innerHTML = `${student.name}<br>${student.phone}`;
+    document.body.appendChild(watermark);
+    watermark.style.display = 'block';
+}
+
+function toggleBlackout(show) {
+    let blackout = document.querySelector('.security-blackout');
+    if (!blackout) {
+        blackout = document.createElement('div');
+        blackout.className = 'security-blackout';
+        blackout.innerHTML = `
+            <i class="fas fa-exclamation-triangle"></i>
+            <h2>تنبيه أمني</h2>
+            <p>محاولة تصوير الشاشة أو نسخ المحتوى تعرض حسابك للحظر النهائي.</p>
+        `;
+        document.body.appendChild(blackout);
+    }
+    blackout.style.display = show ? 'flex' : 'none';
+}
+
+function warnUser(msg) {
+    // You could use a custom toast here, but alert is blocking and annoying, which is good for deterrent.
+    // However, repeated alerts can be blocked by browser.
+    console.warn(msg);
 }
 
 async function loadInitialData() {
@@ -394,6 +467,12 @@ function renderContent() {
                     <h4>${pkg.title}</h4>
                     <p style="margin-bottom: 15px;">${pkg.desc}</p>
                     <div class="pkg-videos-preview">
+                        ${pkg.videos.map(v => {
+            const vid = getYouTubeId(v.url);
+            return `<img src="https://img.youtube.com/vi/${vid}/mqdefault.jpg" class="pkg-thumb-preview" title="${v.title}">`;
+        }).join('')}
+                    </div>
+                    <div class="pkg-videos-list-names" style="max-height: 100px; overflow-y: auto; margin-bottom: 10px;">
                         ${videosHtml}
                     </div>
                     <div class="pkg-footer">
@@ -531,6 +610,8 @@ function checkLogin() {
         currentState.isAdmin = true;
         document.getElementById('admin-modal').style.display = 'none';
         showAdminDashboard();
+        // Show watermark for Admin too so they can verify the system
+        showSecurityWatermark({ name: 'Admin User', phone: '01550366657' });
     } else {
         alert('كلمة المرور غير صحيحة');
     }
@@ -1009,6 +1090,9 @@ function renderAdminSection(section) {
                                     <button class="btn-primary" style="background: #ef4444; padding: 5px 10px;" onclick="deleteItem('packages', '${p.id}')">
                                         <i class="fas fa-trash"></i> حذف
                                     </button>
+                                    <button class="btn-primary" style="background: #10b981; padding: 5px 10px; margin-right: 5px;" onclick="generatePackageVouchersPrompt('${p.id}', '${p.title}')">
+                                        <i class="fas fa-key"></i> أكواد
+                                    </button>
                                 </td>
                             </tr>
                         `).join('')}
@@ -1161,15 +1245,14 @@ function renderAdminSection(section) {
                 <h2 style="color: #ef4444; margin-bottom: 20px;">تصفير النظام بالكامل</h2>
                 <p style="font-size: 1.2rem; margin-bottom: 30px;">
                     انتبه! هذه العملية ستقوم بحذف <b>كل شيء</b> قمت بإضافته (الدروس، الاختبارات، المذكرات، الطلاب، سجلات الزيارات، وأكواد التفعيل).
-                    <br>
-                    استخدم هذا الخيار فقط إذا كنت مستعداً لبدء العمل الرسمي وتصفير بيانات التدريب السابقة.
                 </p>
-                <div style="display: flex; gap: 20px; justify-content: center;">
-                    <button class="btn-primary" style="background: #ef4444; padding: 15px 40px; font-size: 1.1rem;" onclick="resetFullSystem()">
-                        <i class="fas fa-trash-alt"></i> نعم، قم بتصفير النظام الآن
+                <div style="display: flex; gap: 20px; justify-content: center; flex-wrap: wrap;">
+                    <button class="btn-primary" style="background: #ef4444; padding: 15px 40px;" onclick="resetFullSystem()">
+                         نعم، قم بتصفير النظام
                     </button>
-                    <button class="btn-primary" style="background: #6366f1; padding: 15px 40px; font-size: 1.1rem;" onclick="renderAdminSection('dashboard')">
-                        إلغاء والعودة
+                    <!-- Security Test Button -->
+                    <button class="btn-primary" style="background: #f59e0b; padding: 15px 40px;" onclick="testSecurityFeatures()">
+                        <i class="fas fa-shield-alt"></i> تجربة نظام الحماية
                     </button>
                 </div>
             </div>
@@ -1347,10 +1430,31 @@ async function handleModalVoucherActivation(pkgId) {
         if (voucher.isUsed) return alert('هذا الكود تم استخدامه من قبل');
         if (voucher.isActive === false) return alert('تم إيقاف هذا الكود');
 
+        // Check if voucher is for specific package
+        if (voucher.grade === 'package') {
+            if (voucher.packageId !== pkgId) {
+                return alert(`هذا الكود غير صحيح لهذه الباقة (مخصص لباقة: ${voucher.packageName})`);
+            }
+        } else {
+            // Optional: Allow Grade Vouchers to unlock packages of that grade? 
+            // "I buy a book by page" - user says package is like buying a book.
+            // If user wants STRICT package codes, we should reject generic grade codes?
+            // However, usually a "Full Year Subscription" (Grade Voucher) implies access to everything.
+            // Let's allow Grade Match for better UX unless user complains.
+            const pkg = appData.packages.find(p => p.id === pkgId);
+            let currentGrade = pkg ? pkg.grade : '';
+            let voucherCategory = currentGrade.startsWith('3sec') ? '3sec' : currentGrade;
+
+            if (voucher.grade && voucher.grade !== voucherCategory) {
+                return alert('هذا الكود لمرحلة دراسية أخرى، ولا يصلح لهذه الباقة');
+            }
+        }
+
         try {
             await db.collection('vouchers').doc(voucher.id).update({
                 isUsed: true,
-                usedAt: firebase.firestore.FieldValue.serverTimestamp()
+                usedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                targetId: pkgId
             });
             voucher.isUsed = true;
             localStorage.setItem(`pkg_unlocked_${pkgId}`, 'true');
@@ -1579,6 +1683,55 @@ async function generateVouchers() {
     }
 }
 
+async function generatePackageVouchersPrompt(pkgId, pkgTitle) {
+    const countStr = prompt(`كم عدد الأكواد التي تريد توليدها لباقة "${pkgTitle}"؟`, "50");
+    if (!countStr) return;
+    const count = parseInt(countStr);
+    if (isNaN(count) || count <= 0) return alert("عدد غير صحيح");
+
+    if (!confirm(`هل أنت متأكد من توليد ${count} كود خاص بالباقة "${pkgTitle}"؟`)) return;
+
+    const newVouchers = [];
+    for (let i = 0; i < count; i++) {
+        newVouchers.push({
+            code: generateRandomCode(12),
+            grade: 'package',
+            packageId: pkgId,
+            packageName: pkgTitle,
+            isUsed: false,
+            isActive: true,
+            note: '',
+            createdAt: new Date().toISOString()
+        });
+    }
+
+    // Batch save
+    const chunks = [];
+    for (let i = 0; i < newVouchers.length; i += 500) {
+        chunks.push(newVouchers.slice(i, i + 500));
+    }
+
+    try {
+        for (const chunk of chunks) {
+            const batch = db.batch();
+            chunk.forEach(vData => {
+                const ref = db.collection('vouchers').doc();
+                batch.set(ref, vData);
+                vData.id = ref.id;
+            });
+            await batch.commit();
+        }
+
+        appData.vouchers.push(...newVouchers);
+        alert(`تم توليد ${count} كود مخصص للباقة بنجاح`);
+        // Navigate to vouchers section to show them
+        document.querySelector('.admin-nav li[data-section="vouchers"]').click();
+    } catch (error) {
+        console.error("Error generating package vouchers:", error);
+        alert('حدث خطأ أثناء حفظ الأكواد');
+    }
+}
+
 async function checkVoucher(btn) {
     const input = btn.previousElementSibling;
     const code = input.value.trim().toUpperCase();
@@ -1653,6 +1806,7 @@ async function handleStudentLogin(event) {
 
     localStorage.setItem('studentSession', JSON.stringify(student));
     logVisit(student);
+    showSecurityWatermark(student);
     document.getElementById('student-login-modal').style.display = 'none';
     alert(`أهلاً بك يا ${student.name} في منصة الأستاذ أحمد فاروق`);
 
@@ -1939,11 +2093,13 @@ function renderVoucherRows(vouchers) {
         .map((v, idx, arr) => {
             const active = v.isActive !== false;
             const serial = arr.length - idx;
-            const gradeTitle = appData.grades[v.grade]?.title ||
-                (v.grade === '3sec' ? 'الثالث الثانوي' :
-                    (v.grade === '3mid' ? 'الثالث الإعدادي' :
-                        (v.grade === '1sec' ? 'الأول الثانوي' :
-                            (v.grade === '2sec' ? 'الثاني الثانوي' : v.grade || 'غير محدد'))));
+            const gradeTitle = v.grade === 'package'
+                ? `<span style="color:#d8b4fe">📦 ${v.packageName}</span>`
+                : (appData.grades[v.grade]?.title ||
+                    (v.grade === '3sec' ? 'الثالث الثانوي' :
+                        (v.grade === '3mid' ? 'الثالث الإعدادي' :
+                            (v.grade === '1sec' ? 'الأول الثانوي' :
+                                (v.grade === '2sec' ? 'الثاني الثانوي' : v.grade || 'غير محدد')))));
 
             return `
                 <tr>
@@ -2026,4 +2182,15 @@ async function resetFullSystem() {
         console.error("Error resetting system:", error);
         alert("حدث خطأ أثناء تصفير النظام. برجاء المحاولة مرة أخرى أو التواصل مع المبرمج.");
     }
+}
+
+function testSecurityFeatures() {
+    alert("سيتم الآن تجربة شاشة 'محاولة الاختراق' لمدة 3 ثواني...");
+    toggleBlackout(true);
+    setTimeout(() => {
+        toggleBlackout(false);
+        // Force watermark refresh
+        showSecurityWatermark({ name: 'تجربة الحماية', phone: '010XXXXXXXX' });
+        alert("تم إظهار العلامة المائية التجريبية. حاول الآن:\n1. الضغط على PrintScreen\n2. الضغط بزر الماوس الأيمن\n3. تحديد النص");
+    }, 3000);
 }

@@ -1,0 +1,148 @@
+/* Competition Section Styles */
+.competition-container {
+    background: var(--card-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: 20px;
+    padding: 40px;
+    backdrop-filter: blur(15px);
+    overflow: hidden;
+    position: relative;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+}
+
+.competition-content {
+    display: flex;
+    align-items: center;
+    gap: 40px;
+    justify-content: space-between;
+}
+
+.competition-details {
+    flex: 2;
+}
+
+.competition-details h3 {
+    margin-bottom: 20px;
+    font-size: 1.8rem;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.competition-text {
+    font-size: 1.1rem;
+    color: var(--text-muted);
+    margin-bottom: 30px;
+    line-height: 1.8;
+}
+
+.competition-features {
+    display: grid;
+    gap: 15px;
+    margin-bottom: 30px;
+}
+
+.comp-feature {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    background: rgba(255, 255, 255, 0.05);
+    padding: 15px 20px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    transition: 0.3s;
+}
+
+.comp-feature:hover {
+    background: rgba(255, 255, 255, 0.08);
+    transform: translateX(-5px);
+    border-color: var(--primary-color);
+}
+
+.comp-feature i {
+    font-size: 1.5rem;
+    color: gold;
+    width: 30px;
+    text-align: center;
+}
+
+.competition-visual {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+}
+
+.trophy-container {
+    position: relative;
+    width: 200px;
+    height: 200px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.floating-trophy {
+    font-size: 8rem;
+    color: gold;
+    filter: drop-shadow(0 0 20px rgba(255, 215, 0, 0.4));
+    animation: trophy-float 3s ease-in-out infinite;
+    z-index: 2;
+}
+
+.glow-effect {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 150px;
+    height: 150px;
+    background: radial-gradient(circle, rgba(255, 215, 0, 0.2) 0%, transparent 70%);
+    filter: blur(20px);
+    animation: pulse-glow 2s infinite alternate;
+}
+
+@keyframes trophy-float {
+
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+
+    50% {
+        transform: translateY(-15px);
+    }
+}
+
+@keyframes pulse-glow {
+    0% {
+        transform: translate(-50%, -50%) scale(1);
+        opacity: 0.5;
+    }
+
+    100% {
+        transform: translate(-50%, -50%) scale(1.2);
+        opacity: 0.8;
+    }
+}
+
+@media (max-width: 968px) {
+    .competition-content {
+        flex-direction: column-reverse;
+        text-align: center;
+    }
+
+    .competition-details h3 {
+        justify-content: center;
+    }
+
+    .comp-feature {
+        flex-direction: column;
+        text-align: center;
+    }
+
+    .comp-feature:hover {
+        transform: translateY(-5px);
+    }
+}
