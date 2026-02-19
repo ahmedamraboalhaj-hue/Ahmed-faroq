@@ -391,20 +391,41 @@
                                     </div>
                                 </div>
 
-                                <div id="comp-action-area">
-                                    <button class="btn-primary" onclick="handleCompetitionSubscription()">اشترك في
-                                        المسابقة</button>
+                                <div id="comp-action-area" class="comp-action-area">
+                                    <!-- Dynamic content: Registration button or Status Card -->
+                                </div>
+
+                                <!-- Competition Matches Table / Schedule -->
+                                <div id="comp-schedule-container" class="comp-schedule-wrapper hidden">
+                                    <h3 class="schedule-title"><i class="fas fa-sitemap"></i> جدول مواجهات المسابقة</h3>
+                                    <div class="matches-table-responsive">
+                                        <table class="matches-table">
+                                            <thead>
+                                                <tr>
+                                                    <th>الجولة</th>
+                                                    <th>المسار</th>
+                                                    <th>الطالب الأول</th>
+                                                    <th>الطالب الثاني</th>
+                                                    <th>النتيجة</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="matches-table-body">
+                                                <!-- Loaded via JS -->
+                                            </tbody>
+                                        </table>
+                                    </div>
                                 </div>
                             </div>
-                            <div class="competition-visual">
-                                <div class="trophy-container">
-                                    <i class="fas fa-trophy floating-trophy"></i>
-                                    <div class="glow-effect"></div>
-                                </div>
+                        </div>
+                        <div class="competition-visual">
+                            <div class="trophy-container">
+                                <i class="fas fa-trophy floating-trophy"></i>
+                                <div class="glow-effect"></div>
                             </div>
                         </div>
                     </div>
                 </div>
+            </div>
             </div>
         </section>
 

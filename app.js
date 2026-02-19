@@ -54,7 +54,9 @@ let appData = {
     vouchers: [],
     students: [],
     visits: [],
-    competition: {}
+    competitions: {}, // Stores settings for each grade {gradeId: {...}}
+    compRegistrations: [],
+    compMatches: []
 };
 
 
@@ -63,6 +65,7 @@ let currentState = {
     selectedGrade: null,
     selectedBranch: 'الكل',
     isAdmin: false,
+    managementGrade: '1sec', // Default grade for admin management
     compReg: null,
     currentMatch: null
 };
@@ -242,14 +245,14 @@ async function loadInitialData() {
                 }
             });
 
-        // Competition Data Listener
-        db.collection('settings').doc('competition').onSnapshot(doc => {
-            if (doc.exists) {
-                appData.competition = doc.data();
-                updateCompetitionUI();
-                const activeSection = document.querySelector('.admin-nav li.active')?.dataset.section;
-                if (currentState.isAdmin && activeSection === 'manage-competition') renderAdminSection('manage-competition');
-            }
+        // Competition Data Listeners (Per Grade)
+        db.collection('competition_settings').onSnapshot(snapshot => {
+            snapshot.docs.forEach(doc => {
+                appData.competitions[doc.id] = doc.data();
+            });
+            updateCompetitionUI();
+            const activeSection = document.querySelector('.admin-nav li.active')?.dataset.section;
+            if (currentState.isAdmin && activeSection === 'manage-competition') renderAdminSection('manage-competition');
         });
 
         // Competition Registrations Listener (For Admin)
@@ -259,7 +262,28 @@ async function loadInitialData() {
             if (currentState.isAdmin && activeSection === 'manage-competition') renderAdminSection('manage-competition');
         });
 
-        // Student's Own Registration & Match Listener
+        // Competition Matches Listener
+        db.collection('competition_matches').onSnapshot(snapshot => {
+            appData.compMatches = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+            // Student's Match Update
+            const session = localStorage.getItem('studentSession');
+            if (session) {
+                const student = JSON.parse(session);
+                const myMatch = appData.compMatches.find(m =>
+                    (m.status === 'Waiting' || m.status === 'Playing') &&
+                    (m.playerA.id === student.id || m.playerB?.id === student.id) &&
+                    m.grade === student.grade
+                );
+                currentState.currentMatch = myMatch;
+            }
+
+            updateCompetitionUI();
+            const activeSection = document.querySelector('.admin-nav li.active')?.dataset.section;
+            if (currentState.isAdmin && activeSection === 'manage-competition') renderAdminSection('manage-competition');
+        });
+
+        // Student's Own Registration Listener
         const session = localStorage.getItem('studentSession');
         if (session) {
             const student = JSON.parse(session);
@@ -267,15 +291,6 @@ async function loadInitialData() {
                 currentState.compReg = doc.exists ? doc.data() : null;
                 updateCompetitionUI();
             });
-
-            db.collection('competition_matches')
-                .onSnapshot(snapshot => {
-                    const matches = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-                    // Only care about Waiting/Playing matches for the current student
-                    const myMatch = matches.find(m => (m.status === 'Waiting' || m.status === 'Playing') && (m.playerA.id === student.id || m.playerB?.id === student.id));
-                    currentState.currentMatch = myMatch;
-                    updateCompetitionUI();
-                });
         }
 
         // Wait for initial data load before proceeding
@@ -1047,12 +1062,14 @@ function renderAdminSection(section) {
             </div>
         `;
     } else if (section === 'manage-competition') {
-        const comp = appData.competition || {};
-        const regs = appData.compRegistrations || [];
+        const selectedGrade = currentState.managementGrade;
+        const comp = appData.competitions[selectedGrade] || {};
+        const regs = appData.compRegistrations.filter(r => r.grade === selectedGrade);
+        const matches = appData.compMatches.filter(m => m.grade === selectedGrade);
 
         main.innerHTML = `
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                <h3>إدارة مسابقة المتفوّقين 🏆</h3>
+                <h3>إدارة مسابقات المتفوّقين 🏆</h3>
                 <div class="badge" style="background: ${comp.isActive ? '#22c55e' : '#ef4444'}; color: white;">
                     ${comp.isActive ? 'المسابقة نشطة' : 'المسابقة مغلقة'}
                 </div>
@@ -1060,11 +1077,19 @@ function renderAdminSection(section) {
 
             <div class="admin-form-container glass" style="padding: 25px; margin-bottom: 30px;">
                 <div class="form-group">
-                    <label>عنوان المسابقة</label>
+                    <label>اختر الصف الدراسي لإدارته</label>
+                    <select id="comp-mgmt-grade" onchange="currentState.managementGrade = this.value; renderAdminSection('manage-competition')">
+                        ${Object.keys(appData.grades).map(gid => `
+                            <option value="${gid}" ${selectedGrade === gid ? 'selected' : ''}>${appData.grades[gid].title}</option>
+                        `).join('')}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>عنوان مسابقة ${appData.grades[selectedGrade]?.title}</label>
                     <input type="text" id="comp-title" value="${comp.title || ''}">
                 </div>
                 <div class="form-group">
-                    <label>تفعيل المسابقة للطلاب</label>
+                    <label>تفعيل المسابقة لهذا الصف</label>
                     <select id="comp-active">
                         <option value="true" ${comp.isActive ? 'selected' : ''}>نشطة (تظهر للطلاب)</option>
                         <option value="false" ${!comp.isActive ? 'selected' : ''}>غير نشطة (مخفية)</option>
@@ -1078,48 +1103,78 @@ function renderAdminSection(section) {
                         <option value="Ended" ${comp.status === 'Ended' ? 'selected' : ''}>انتهت المسابقة</option>
                     </select>
                 </div>
-                <div class="form-group">
-                    <label>عدد الأسئلة للمواجهة</label>
-                    <input type="number" id="comp-q-count" value="${comp.questionCount || 10}">
-                </div>
-                <div class="form-group">
-                    <label>زمن السؤال الواحد (ثانية)</label>
-                    <input type="number" id="comp-q-time" value="${comp.questionTime || 30}">
-                </div>
                 <div class="form-group" style="grid-column: 1/-1;">
-                    <label>وصف وشروط المسابقة</label>
+                    <label>وصف وشروط المسابقة (يظهر للطلاب)</label>
                     <textarea id="comp-desc" style="height: 100px;">${comp.desc || ''}</textarea>
                 </div>
                 <div class="hero-btns" style="grid-column: 1/-1;">
-                    <button class="btn-primary" onclick="saveCompetition()">حفظ الإعدادات الأساسية</button>
-                    <button class="btn-primary" style="background: var(--gradient-2);" onclick="triggerDistribution()">بدء التوزيع العشوائي (Round ${(comp.currentRound || 0) + 1})</button>
+                    <button class="btn-primary" onclick="saveCompetition()">حفظ إعدادات ${appData.grades[selectedGrade]?.title}</button>
+                    <button class="btn-primary" style="background: var(--gradient-2);" onclick="triggerDistribution('Winners')">بدء جولة الفائزين (Round ${(comp.currentRound || 0) + 1})</button>
+                    <button class="btn-primary" style="background: #4b5563;" onclick="triggerDistribution('Losers')">بدء جولة الخاسرين</button>
                 </div>
             </div>
 
             <div class="stats-grid" style="margin-bottom: 30px;">
                 <div class="stat-item glass">
                     <h4>${regs.length}</h4>
-                    <p>إجمالي المسجلين</p>
+                    <p>المسجلين من هذا الصف</p>
                 </div>
                 <div class="stat-item glass">
                     <h4>${regs.filter(r => r.status === 'Active' || r.status === 'Qualified').length}</h4>
-                    <p>الطلاب النشطين</p>
+                    <p>المتأهلون (الفائزون)</p>
                 </div>
                 <div class="stat-item glass">
-                    <h4>${comp.currentRound || 0}</h4>
-                    <p>الجولة الحالية</p>
+                    <h4>${regs.filter(r => r.status === 'Relegated').length}</h4>
+                    <p>المستبعدون (لديهم فرصة ثانية)</p>
                 </div>
             </div>
 
-            <h4>قائمة المتسابقين</h4>
+            <h4 style="margin-bottom: 15px;"><i class="fas fa-swords"></i> التحكم في نتائج مواجهات ${appData.grades[selectedGrade]?.title}</h4>
+            <div class="vouchers-table-container" style="margin-bottom: 40px;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>الجولة</th>
+                            <th>الطالب الأول</th>
+                            <th>الطالب الثاني</th>
+                            <th>تحديد الفائز</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${matches.slice().sort((a, b) => b.createdAt - a.createdAt).map(m => `
+                            <tr>
+                                <td>جولة ${m.round}</td>
+                                <td style="font-weight: 700;">${m.playerA.name}</td>
+                                <td style="font-weight: 700;">${m.playerB ? m.playerB.name : 'تأهل تلقائي'}</td>
+                                <td>
+                                    ${m.status === 'Finished' ? `
+                                        <span class="badge" style="background: #22c55e;">انتهت المواجهة</span>
+                                    ` : `
+                                        <div style="display: flex; gap: 5px; justify-content: center;">
+                                            <button class="btn-primary" style="padding: 5px 10px; font-size: 0.8rem;" onclick="setMatchWinner('${m.id}', '${m.playerA.id}', '${m.playerB ? m.playerB.id : ''}')">
+                                                فوز ${m.playerA.name.split(' ')[0]}
+                                            </button>
+                                            ${m.playerB ? `
+                                                <button class="btn-primary" style="background: var(--gradient-2); padding: 5px 10px; font-size: 0.8rem;" onclick="setMatchWinner('${m.id}', '${m.playerB.id}', '${m.playerA.id}')">
+                                                    فوز ${m.playerB.name.split(' ')[0]}
+                                                </button>
+                                            ` : ''}
+                                        </div>
+                                    `}
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+
+            <h4>قائمة المتسابقين الكلية (${appData.grades[selectedGrade]?.title})</h4>
             <div class="vouchers-table-container">
                 <table>
                     <thead>
                         <tr>
                             <th>الاسم</th>
-                            <th>المرحلة</th>
                             <th>الحالة</th>
-                            <th>النقاط التراكمية</th>
                             <th>إجراءات</th>
                         </tr>
                     </thead>
@@ -1127,15 +1182,13 @@ function renderAdminSection(section) {
                         ${regs.map(r => `
                             <tr>
                                 <td>${r.studentName}</td>
-                                <td>${appData.grades[r.grade]?.title || r.grade}</td>
                                 <td>
-                                    <span class="badge" style="background: ${r.status === 'Eliminated' ? '#ef4444' : (r.status === 'Active' ? '#3b82f6' : '#22c55e')}">
-                                        ${r.status}
+                                    <span class="badge" style="background: ${r.status === 'Eliminated' ? '#ef4444' : (r.status === 'Active' ? '#3b82f6' : (r.status === 'Relegated' ? '#f59e0b' : '#22c55e'))}">
+                                        ${r.status === 'Pending' ? 'مسجل' : (r.status === 'Active' ? 'يلعب الآن' : (r.status === 'Qualified' ? 'متأهل للفائزين' : (r.status === 'Relegated' ? 'منتقل للخاسرين' : 'مستبعد نهائياً')))}
                                     </span>
                                 </td>
-                                <td>${r.score || 0}</td>
                                 <td>
-                                    <button class="btn-primary" style="background: #ef4444; padding: 5px;" onclick="updateRegStatus('${r.studentId}', 'Eliminated')">استبعاد</button>
+                                    <button class="btn-primary" style="background: #ef4444; padding: 5px 10px;" onclick="updateRegStatus('${r.studentId}', 'Eliminated')">استبعاد</button>
                                 </td>
                             </tr>
                         `).join('')}
@@ -2332,12 +2385,15 @@ function testSecurityFeatures() {
 
 function updateCompetitionUI() {
     const dynamicArea = document.getElementById('competition-dynamic-area');
-    if (!dynamicArea || !appData.competition) return;
+    if (!dynamicArea) return;
 
-    const comp = appData.competition;
     const session = localStorage.getItem('studentSession');
     const student = session ? JSON.parse(session) : null;
     const reg = currentState.compReg;
+
+    // Use competition for student's grade, or first available for guests
+    const gradeId = student ? student.grade : Object.keys(appData.competitions)[0];
+    const comp = appData.competitions[gradeId] || {};
 
     document.getElementById('display-comp-title').innerHTML = `<i class="fas fa-trophy" style="color: gold;"></i> ${comp.title || 'مسابقة المتفوقين'}`;
     document.getElementById('display-comp-desc').textContent = comp.desc || 'استعد لأقوى التحديات الرياضية!';
@@ -2347,50 +2403,72 @@ function updateCompetitionUI() {
     if (!student) {
         actionHTML = `<button class="btn-primary" onclick="alert('برجاء تسجيل الدخول أولاً للمشاركة'); scrollToSection('student-login-modal')">سجل دخولك للمشاركة</button>`;
     } else if (!comp.isActive) {
-        actionHTML = `<div class="badge" style="background: var(--glass-border); color: var(--text-muted);">المسابقة مغلقة حالياً</div>`;
+        actionHTML = `<div class="badge" style="background: var(--glass-border); color: var(--text-muted);">المسابقة مغلقة حالياً لصفك الدراسي</div>`;
     } else if (!reg) {
-        // Not registered yet
         if (comp.status === 'Registration' || !comp.status) {
-            actionHTML = `<button class="btn-primary" onclick="handleCompetitionSubscription()">اشترك الآن في المسابقة</button>`;
+            actionHTML = `
+                <div class="registration-form glass" style="padding: 20px; border-radius: 15px; border: 1px solid var(--primary-light);">
+                    <h4 style="color: var(--primary-light); margin-bottom: 15px;">انضم للمنافسة الآن! 🏆</h4>
+                    <div class="form-group" style="margin-bottom: 15px;">
+                        <label style="color: white; font-size: 0.9rem; margin-bottom: 8px; display: block;">أدخل اسمك الذي سيظهر في المسابقة:</label>
+                        <input type="text" id="comp-student-name" placeholder="مثال: أحمد محمد علي" 
+                               style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid var(--glass-border); background: rgba(0,0,0,0.3); color: white;">
+                    </div>
+                    <button class="btn-primary" style="width: 100%;" onclick="handleCompetitionSubscription()">تأكيد الاشتراك في المسابقة</button>
+                    <p style="font-size: 0.8rem; color: #94a3b8; margin-top: 10px; text-align: center;">هذه المسابقة مخصصة لطلاب: ${appData.grades[student.grade]?.title}</p>
+                </div>
+            `;
         } else {
             actionHTML = `<div class="badge" style="background: #ef4444; color: white;">عذراً، انتهت فترة التسجيل</div>`;
         }
     } else {
-        // Registered
         if (reg.status === 'Pending') {
             actionHTML = `
                 <div class="registration-status glass" style="padding: 15px; border-radius: 10px; border: 1px solid var(--primary-light);">
                     <p style="color: var(--primary-light); font-weight: 700; margin-bottom: 5px;"><i class="fas fa-clock"></i> تم التسجيل بنجاح</p>
-                    <p style="font-size: 0.9rem; color: var(--text-muted);">في انتظار توزيع الطلاب وبدء المواجهات من قبل الإدارة...</p>
+                    <p style="font-size: 0.9rem; color: var(--text-muted);">في انتظار توزيع طلاب صفك من قبل الإدارة...</p>
                 </div>
             `;
         } else if (reg.status === 'Eliminated') {
             actionHTML = `
-                <div class="registration-status glass" style="padding: 15px; border-radius: 10px; border: 1px solid #ef4444;">
-                    <p style="color: #ef4444; font-weight: 700; margin-bottom: 5px;"><i class="fas fa-times-circle"></i> انتهى مشوارك</p>
-                    <p style="font-size: 0.9rem; color: var(--text-muted);">لقد خرجت من المسابقة. حظ أوفر في المرة القادمة!</p>
+                <div class="registration-status glass card-loser" style="padding: 15px; border-radius: 10px;">
+                    <p style="color: #ef4444; font-weight: 700; margin-bottom: 5px;"><i class="fas fa-times-circle"></i> حظ أوفر</p>
+                    <p style="font-size: 0.9rem; color: var(--text-muted);">لقد انتهى مشوارك في المسابقة.</p>
                 </div>
             `;
-        } else if (reg.status === 'Active' || reg.status === 'Qualified') {
+        } else if (reg.status === 'Active' || reg.status === 'Qualified' || reg.status === 'Relegated') {
             if (currentState.currentMatch) {
-                const match = currentState.currentMatch;
-                const opponentName = match.playerA.id === student.id ? (match.playerB ? match.playerB.name : 'تأهل تلقائي') : match.playerA.name;
+                const m = currentState.currentMatch;
+                const studentIsA = m.playerA.id === student.id;
+                const opponentName = studentIsA ? (m.playerB ? m.playerB.name : 'تأهل تلقائي') : m.playerA.name;
+
+                // Initial result is "Neutral/Tie" until teacher decides
+                let resultText = "متعادلة (في انتظار قرار المستر)";
+                if (m.winner) {
+                    resultText = m.winner === student.id ? "مبروك! لقد فزت في هذه الجولة" : "للأسف، خسر هذه الجولة";
+                }
 
                 actionHTML = `
-                    <div class="registration-status glass" style="padding: 20px; border-radius: 15px; border: 2px solid #3b82f6; animation: pulse-blue 2s infinite;">
-                        <h4 style="color: #3b82f6; margin-bottom: 10px;">لديك مواجهة قائمة! ⚔️</h4>
-                        <p style="margin-bottom: 15px;">الخصم: <strong>${opponentName}</strong></p>
-                        ${opponentName === 'تأهل تلقائي' ?
-                        `<button class="btn-primary" style="background: #22c55e;" onclick="confirmAutoQualification('${match.id}')">تأكيد التأهل للجولة التالية</button>` :
-                        `<button class="btn-primary" onclick="startMatchArena()">دخول ساحة المواجهة</button>`
-                    }
+                    <div class="registration-status glass card-playing" style="padding: 25px; border-radius: 15px; animation: pulse-blue 2s infinite;">
+                        <h4 style="color: #3b82f6; margin-bottom: 15px; border-bottom: 1px solid rgba(59, 130, 246, 0.2); padding-bottom: 10px;">مواجهة مباشرة ⚔️</h4>
+                        <div style="display: flex; flex-direction: column; gap: 10px; text-align: right;">
+                            <p><strong>الخصم:</strong> <span style="color: white; font-size: 1.1rem;">${opponentName}</span></p>
+                            <p><strong>النتيجة:</strong> <span style="color: var(--primary-light); font-weight: 700;">${resultText}</span></p>
+                        </div>
                     </div>
                 `;
-            } else {
+            } else if (reg.status === 'Qualified') {
                 actionHTML = `
-                    <div class="registration-status glass" style="padding: 15px; border-radius: 10px; border: 1px solid #22c55e;">
+                    <div class="registration-status glass card-winner" style="padding: 15px; border-radius: 10px;">
                         <p style="color: #22c55e; font-weight: 700; margin-bottom: 5px;"><i class="fas fa-check-circle"></i> أنت بطل متأهل!</p>
-                        <p style="font-size: 0.9rem; color: var(--text-muted);">في انتظار الجولة القادمة...</p>
+                        <p style="font-size: 0.9rem; color: var(--text-muted);">أحسنت! انتظر الجولة القادمة بتركيز.</p>
+                    </div>
+                `;
+            } else if (reg.status === 'Relegated') {
+                actionHTML = `
+                    <div class="registration-status glass" style="padding: 15px; border-radius: 10px; border: 1px solid #f59e0b;">
+                        <p style="color: #f59e0b; font-weight: 700; margin-bottom: 5px;"><i class="fas fa-history"></i> محاولة ثانية</p>
+                        <p style="font-size: 0.9rem; color: var(--text-muted);">لقد انتقلت لمسار الخاسرين. لا تقلق، لا زال لديك فرصة للمنافسة والعودة!</p>
                     </div>
                 `;
             }
@@ -2398,52 +2476,100 @@ function updateCompetitionUI() {
     }
 
     document.getElementById('comp-action-area').innerHTML = actionHTML;
+
+    // Render matches schedule table (Filter by student grade)
+    const matches = appData.compMatches || [];
+    const myGradeMatches = student ? matches.filter(m => {
+        // Find if any player in this match belongs to student's grade (all players in a match should be same grade)
+        // We can also store 'grade' in match object for easier filtering.
+        return m.grade === student.grade;
+    }) : [];
+
+    if (myGradeMatches.length > 0) {
+        document.getElementById('comp-schedule-container').classList.remove('hidden');
+        renderMatchesTable(myGradeMatches);
+    } else {
+        document.getElementById('comp-schedule-container').classList.add('hidden');
+    }
+}
+
+function renderMatchesTable(matches) {
+    const tbody = document.getElementById('matches-table-body');
+    if (!tbody) return;
+
+    tbody.innerHTML = matches.slice().sort((a, b) => b.createdAt - a.createdAt).map(m => {
+        const winnerId = m.winner;
+        const playerAName = m.playerA.name;
+        const playerBName = m.playerB ? m.playerB.name : '---';
+        const bracketName = m.bracket === 'Losers' ? '<span style="color: #fca5a5;">الخاسرين</span>' : '<span style="color: #6ee7b7;">الفائزين</span>';
+
+        let resultBadge = `<span class="match-status-badge status-tie">في الانتظار</span>`;
+        if (winnerId) {
+            resultBadge = winnerId === m.playerA.id
+                ? `<span class="match-status-badge status-win">فوز ${playerAName}</span>`
+                : `<span class="match-status-badge status-win">فوز ${playerBName}</span>`;
+        }
+
+        return `
+            <tr>
+                <td>جولة ${m.round}</td>
+                <td>${bracketName}</td>
+                <td class="${winnerId === m.playerA.id ? 'winner-highlight' : (winnerId ? 'loser-highlight' : '')}">${playerAName}</td>
+                <td class="${m.playerB && winnerId === m.playerB.id ? 'winner-highlight' : (m.playerB && winnerId ? 'loser-highlight' : '')}">${playerBName}</td>
+                <td>${resultBadge}</td>
+            </tr>
+        `;
+    }).join('');
 }
 
 async function handleCompetitionSubscription() {
     const session = localStorage.getItem('studentSession');
     if (!session) return alert('برجاء تسجيل الدخول أولاً');
 
+    const nameInput = document.getElementById('comp-student-name');
+    const studentName = nameInput ? nameInput.value.trim() : "";
+
+    if (!studentName) return alert('برجاء إدخال اسمك أولاً');
+    if (studentName.length < 3) return alert('الاسم قصير جداً');
+
     const student = JSON.parse(session);
 
-    if (!confirm('هل أنت متأكد من رغبتك في الاشتراك في المسابقة ببياناتك الحالية؟')) return;
+    if (!confirm(`هل أنت متأكد من الاشتراك باسم: ${studentName}؟`)) return;
 
     try {
         await db.collection('competition_registrations').doc(student.id).set({
             studentId: student.id,
-            studentName: student.name,
+            studentName: studentName,
             grade: student.grade,
             phone: student.phone,
             status: 'Pending',
             score: 0,
             registeredAt: firebase.firestore.FieldValue.serverTimestamp()
         });
-        alert('تم تسجيلك بنجاح في المسابقة! تابع هذه الصفحة لمعرفة موعد مواجهاتك.');
+        alert('تم تسجيلك بنجاح! تابع جدول المواجهات في الأسفل.');
+        updateCompetitionUI();
     } catch (error) {
         console.error("Error subscribing to competition:", error);
-        alert('حدث خطأ أثناء الاشتراك، برجاء المحاولة لاحقاً');
+        alert('حدث خطأ أثناء الاشتراك');
     }
 }
 
 async function saveCompetition() {
+    const selectedGrade = currentState.managementGrade;
     const title = document.getElementById('comp-title').value;
     const desc = document.getElementById('comp-desc').value;
     const isActive = document.getElementById('comp-active').value === 'true';
     const status = document.getElementById('comp-phase-status').value;
-    const questionCount = parseInt(document.getElementById('comp-q-count').value) || 10;
-    const questionTime = parseInt(document.getElementById('comp-q-time').value) || 30;
 
     try {
-        await db.collection('settings').doc('competition').update({
+        await db.collection('competition_settings').doc(selectedGrade).update({
             title,
             desc,
             isActive,
             status,
-            questionCount,
-            questionTime,
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         });
-        alert('تم تحديث إعدادات المسابقة');
+        alert('تم تحديث إعدادات مسابقة ' + appData.grades[selectedGrade].title);
     } catch (error) {
         console.error("Error saving competition:", error);
         alert('فشل الحفظ');
@@ -2451,18 +2577,24 @@ async function saveCompetition() {
 }
 
 // Admin Logic for Students Distribution
-async function triggerDistribution() {
-    if (!confirm('سيتم الآن توزيع الطلاب المسجلين عشوائياً وبدء الجولة الأولى. هل أنت متأكد؟')) return;
+async function triggerDistribution(bracketType = 'Winners') {
+    const selectedGrade = currentState.managementGrade;
+    const comp = appData.competitions[selectedGrade] || {};
+    const bracketMsg = bracketType === 'Winners' ? 'المتأهلين (الفائزين)' : 'المستبعدين (الخاسرين)';
 
-    const regs = appData.compRegistrations || [];
-    const activeRegs = regs.filter(r => r.status === 'Pending' || r.status === 'Qualified');
+    if (!confirm(`سيتم الآن توزيع طلاب مسار ${bracketMsg} لصف ${appData.grades[selectedGrade].title} عشوائياً. هل أنت متأكد؟`)) return;
 
-    if (activeRegs.length < 2) return alert('يجب وجود طالبين على الأقل لبدء المسابقة');
+    // Filter registrations by grade AND status
+    const regs = appData.compRegistrations.filter(r => r.grade === selectedGrade);
+    let targetStatus = bracketType === 'Winners' ? ['Pending', 'Qualified'] : ['Relegated'];
 
-    // Shuffle
+    const activeRegs = regs.filter(r => targetStatus.includes(r.status));
+
+    if (activeRegs.length < 2) return alert(`لا يوجد عدد كافٍ من الطلاب في مسار ${bracketMsg} للمواجهة (تحتاج 2 على الأقل)`);
+
     const shuffled = [...activeRegs].sort(() => Math.random() - 0.5);
-    const matches = [];
     const batch = db.batch();
+    const currentRound = (comp.currentRound || 0) + 1;
 
     for (let i = 0; i < shuffled.length; i += 2) {
         const playerA = shuffled[i];
@@ -2470,13 +2602,14 @@ async function triggerDistribution() {
 
         const matchRef = db.collection('competition_matches').doc();
         const matchData = {
-            round: (appData.competition.currentRound || 0) + 1,
+            round: currentRound,
+            bracket: bracketType,
+            grade: selectedGrade,
             playerA: { id: playerA.studentId, name: playerA.studentName },
             playerB: playerB ? { id: playerB.studentId, name: playerB.studentName } : null,
             status: playerB ? 'Waiting' : 'Finished',
-            winner: playerB ? null : playerA.id,
-            results: { playerA: 0, playerB: 0 },
-            startTime: null,
+            winner: playerB ? null : playerA.studentId,
+            matchResult: playerB ? 'في انتظار المستر' : 'تأهل تلقائي',
             createdAt: firebase.firestore.FieldValue.serverTimestamp()
         };
         batch.set(matchRef, matchData);
@@ -2486,173 +2619,69 @@ async function triggerDistribution() {
         if (playerB) batch.update(db.collection('competition_registrations').doc(playerB.studentId), { status: 'Active' });
     }
 
-    // Update competition round
-    batch.update(db.collection('settings').doc('competition'), {
-        currentRound: (appData.competition.currentRound || 0) + 1,
-        status: 'In Progress'
-    });
+    // Update competition round for THIS grade only
+    if (bracketType === 'Winners') {
+        batch.update(db.collection('competition_settings').doc(selectedGrade), {
+            currentRound: currentRound,
+            status: 'In Progress'
+        });
+    }
 
     try {
         await batch.commit();
-        alert('تم توزيع الطلاب وبدء المواجهات بنجاح!');
+        alert(`تم توزيع جولة جولة ${bracketType === 'Winners' ? 'الفائزين' : 'الخاسرين'} لصف ${appData.grades[selectedGrade].title} بنجاح!`);
     } catch (error) {
         console.error("Distribution error:", error);
         alert('حدث خطأ أثناء التوزيع');
     }
 }
 
-// Arena Logic
-let arenaTimerInterval = null;
-let currentMatchData = null;
-let currentQuestionIndex = 0;
-let arenaQuestions = [];
+async function setMatchWinner(matchId, winnerId, loserId) {
+    if (!confirm('هل أنت متأكد من تحديد الفائز؟ لا يمكن التراجع.')) return;
 
-async function startMatchArena() {
-    if (!currentState.currentMatch) return;
+    const batch = db.batch();
+    const matchRef = db.collection('competition_matches').doc(matchId);
 
-    const match = currentState.currentMatch;
-    currentMatchData = match;
+    // Get match data to check bracket
+    const match = appData.compMatches.find(m => m.id === matchId);
+    const isWinnerBracket = match.bracket !== 'Losers';
 
-    // Set status to Playing if not already
-    await db.collection('competition_matches').doc(match.id).update({
-        status: 'Playing',
-        startTime: firebase.firestore.FieldValue.serverTimestamp()
+    batch.update(matchRef, {
+        winner: winnerId,
+        status: 'Finished'
     });
 
-    // Load Quiz Questions (Use existing logic from add-exam if possible or specific competition bank)
-    // For now, let's take questions from the first "Active" exam for that grade
-    const student = JSON.parse(localStorage.getItem('studentSession'));
-    const gradeExams = appData.exams.filter(e => e.grade === student.grade);
-    if (gradeExams.length === 0) return alert('عذراً، لا توجد أسئلة متوفرة لهذه المسابقة حالياً');
-
-    arenaQuestions = gradeExams[0].questions.slice(0, appData.competition.questionCount || 10);
-    currentQuestionIndex = 0;
-
-    // Show Arena UI
-    const arena = document.getElementById('competition-arena');
-    arena.classList.remove('hidden');
-
-    document.getElementById('arena-player-a-name').textContent = student.name;
-    document.getElementById('arena-player-b-name').textContent = match.playerA.id === student.id ? (match.playerB ? match.playerB.name : 'تأهل تلقائي') : match.playerA.name;
-
-    renderArenaQuestion();
-    startArenaTimer();
-}
-
-function renderArenaQuestion() {
-    if (currentQuestionIndex >= arenaQuestions.length) {
-        finishMatch();
-        return;
-    }
-
-    const q = arenaQuestions[currentQuestionIndex];
-    document.getElementById('arena-q-current').textContent = currentQuestionIndex + 1;
-    document.getElementById('arena-q-total').textContent = arenaQuestions.length;
-    document.getElementById('arena-question-text').textContent = q.text;
-
-    const optionsContainer = document.getElementById('arena-options');
-    optionsContainer.innerHTML = '';
-    q.opts.forEach((opt, idx) => {
-        const btn = document.createElement('div');
-        btn.className = 'arena-opt';
-        btn.textContent = opt;
-        btn.onclick = () => selectArenaOption(idx + 1);
-        optionsContainer.appendChild(btn);
-    });
-}
-
-async function selectArenaOption(optIdx) {
-    const q = arenaQuestions[currentQuestionIndex];
-    const isCorrect = parseInt(q.correct) === optIdx;
-
-    // Update local score
-    const student = JSON.parse(localStorage.getItem('studentSession'));
-    const matchRef = db.collection('competition_matches').doc(currentMatchData.id);
-
-    const increment = isCorrect ? 1 : 0;
-    const field = currentMatchData.playerA.id === student.id ? 'results.playerA' : 'results.playerB';
-
-    await matchRef.update({
-        [field]: firebase.firestore.FieldValue.increment(increment)
-    });
-
-    currentQuestionIndex++;
-    renderArenaQuestion();
-}
-
-function startArenaTimer() {
-    let timeLeft = appData.competition.questionTime || 30;
-    const timerDisplay = document.getElementById('arena-timer');
-    const progressCircle = document.getElementById('timer-progress');
-    const totalTime = timeLeft;
-
-    if (arenaTimerInterval) clearInterval(arenaTimerInterval);
-
-    arenaTimerInterval = setInterval(() => {
-        timeLeft--;
-        timerDisplay.textContent = timeLeft;
-
-        // Update circle animation
-        const offset = 220 - (timeLeft / totalTime) * 220;
-        progressCircle.style.strokeDashoffset = offset;
-
-        if (timeLeft <= 0) {
-            clearInterval(arenaTimerInterval);
-            finishMatch();
-        }
-    }, 1000);
-}
-
-async function finishMatch() {
-    clearInterval(arenaTimerInterval);
-    const arena = document.getElementById('competition-arena');
-    const student = JSON.parse(localStorage.getItem('studentSession'));
-
-    // Final result calculation logic usually on server or cloud functions, 
-    // but here we can do a simple check when both finished.
-    // For now, mark this user as finished.
-
-    document.getElementById('arena-question-box').innerHTML = `
-        <div style="text-align: center; padding: 40px;">
-            <i class="fas fa-check-circle" style="font-size: 5rem; color: #22c55e; margin-bottom: 20px;"></i>
-            <h2>انتهت المواجهة! ✨</h2>
-            <p>سيتم تحديد الفائز تلقائياً بمجرد انتهاء الخصم من الإجابة.</p>
-            <button class="btn-primary" style="margin-top: 20px;" onclick="closeArena()">العودة للمنصة</button>
-        </div>
-    `;
-
-    // Check if both sides are done and declare winner (this is a simplified client-side version)
-    // In a real app, a Cloud Function would handle the match conclusion.
-    setTimeout(async () => {
-        const doc = await db.collection('competition_matches').doc(currentMatchData.id).get();
-        const data = doc.data();
-        if (data.status === 'Finished') return;
-
-        // Determination logic can be complex (who has more score, who finished faster etc.)
-        // Simplified: Mark as finished. Winner is handled by admin or another logic.
-        await db.collection('competition_matches').doc(currentMatchData.id).update({
-            status: 'Finished'
-        });
-    }, 2000);
-}
-
-function closeArena() {
-    document.getElementById('competition-arena').classList.add('hidden');
-    // Reload state
-    updateCompetitionUI();
-}
-
-async function confirmAutoQualification(matchId) {
-    const student = JSON.parse(localStorage.getItem('studentSession'));
-    await db.collection('competition_matches').doc(matchId).update({
-        status: 'Finished',
-        winner: student.id
-    });
-    await db.collection('competition_registrations').doc(student.id).update({
+    // Winner always qualifies for next round in THEIR current bracket
+    batch.update(db.collection('competition_registrations').doc(winnerId), {
         status: 'Qualified'
     });
-    alert('مبروك! تأهلت تلقائياً للجولة التالية.');
+
+    // Loser logic
+    if (loserId) {
+        if (isWinnerBracket) {
+            // If lost in winner bracket, move to loser bracket (Relegated)
+            batch.update(db.collection('competition_registrations').doc(loserId), {
+                status: 'Relegated'
+            });
+        } else {
+            // If lost in loser bracket, eliminated completely
+            batch.update(db.collection('competition_registrations').doc(loserId), {
+                status: 'Eliminated'
+            });
+        }
+    }
+
+    try {
+        await batch.commit();
+        alert('تم تحديث النتيجة! الفائز تأهل للمرحلة التالية، والخاسر انتقل للمسار المناسب.');
+    } catch (e) {
+        console.error(e);
+        alert('خطأ في تحديث النتيجة');
+    }
 }
+
+// Match results winner setting is now manual by teacher in admin panel
+// Legacy arena logic removed based on teacher request.
 
 async function updateRegStatus(studentId, newStatus) {
     if (!confirm('هل أنت متأكد من تغيير حالة الطالب؟')) return;
@@ -2664,22 +2693,24 @@ async function updateRegStatus(studentId, newStatus) {
     }
 }
 
-// System Initialization for Competition (Runs once if missing)
+// System Initialization for Competition (Runs once per grade if missing)
 async function initCompetitionSettings() {
-    const compRef = db.collection('settings').doc('competition');
-    const doc = await compRef.get();
-    if (!doc.exists) {
-        await compRef.set({
-            title: "مسابقة المتفوقين الكبرى",
-            desc: "أهلاً بكم في المسابقة الكبرى لمادة الرياضيات. استعدوا للمواجهات المباشرة!",
-            isActive: false,
-            status: "Registration",
-            questionCount: 10,
-            questionTime: 30,
-            currentRound: 0,
-            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-        });
-        console.log("Competition settings initialized.");
+    const grades = Object.keys(appData.grades);
+
+    for (const gid of grades) {
+        const compRef = db.collection('competition_settings').doc(gid);
+        const doc = await compRef.get();
+        if (!doc.exists) {
+            await compRef.set({
+                title: `مسابقة ${appData.grades[gid].title}`,
+                desc: `أهلاً بكم في المسابقة الكبرى لطلاب ${appData.grades[gid].title}. استعدوا للمواجهات المباشرة!`,
+                isActive: false,
+                status: "Registration",
+                currentRound: 0,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            console.log(`Competition settings initialized for ${gid}.`);
+        }
     }
 }
 initCompetitionSettings();
