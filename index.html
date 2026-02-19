@@ -361,41 +361,46 @@
         <section id="competition" class="section reveal">
             <div class="container">
                 <div class="section-header">
-                    <h2>مسابقة <span class="gradient-text">المتفوقين</span> الشهرية</h2>
-                    <p>شارك في تحديات الرياضيات وافرز تفوقك لتربح جوائز قيمة</p>
+                    <h2>مسابقة <span class="gradient-text">المتفوّقين</span> 🏆</h2>
+                    <p id="comp-subtitle">شارك في أقوى المواجهات الرياضية واربح جوائز قيمة</p>
                 </div>
 
-                <div class="competition-container glass">
-                    <div class="competition-content">
-                        <div class="competition-details">
-                            <h3><i class="fas fa-trophy" style="color: gold;"></i> تفاصيل المسابقة</h3>
-                            <p class="competition-text">
-                                استعدوا لأقوى المنافسات العلمية! سيتم الإعلان عن تفاصيل المسابقة القادمة قريباً.
-                                تهدف المسابقة إلى تشجيع الطلاب على التفوق الدراسي وخلق روح المنافسة الشريفة.
-                            </p>
+                <div id="competition-dynamic-area">
+                    <!-- This area will be populated by JavaScript based on competition status -->
+                    <div class="competition-container glass">
+                        <div class="competition-content">
+                            <div class="competition-details">
+                                <h3 id="display-comp-title"><i class="fas fa-trophy" style="color: gold;"></i> جاري
+                                    تحميل تفاصيل المسابقة...</h3>
+                                <p class="competition-text" id="display-comp-desc">
+                                    برجاء الانتظار حتى يتم تحميل بيانات المسابقة من السحابة.
+                                </p>
 
-                            <div class="competition-features">
-                                <div class="comp-feature">
-                                    <i class="fas fa-medal"></i>
-                                    <span>جوائز مالية وعينية قيمة للمراكز الأولى</span>
+                                <div class="competition-features">
+                                    <div class="comp-feature">
+                                        <i class="fas fa-medal"></i>
+                                        <span>نظام مواجهات 1 ضد 1 عشوائي</span>
+                                    </div>
+                                    <div class="comp-feature">
+                                        <i class="fas fa-certificate"></i>
+                                        <span>شهادات تقدير وجوائز للمراكز الأولى</span>
+                                    </div>
+                                    <div class="comp-feature">
+                                        <i class="fas fa-bolt"></i>
+                                        <span>تحديات سريعة في قلب المنهج</span>
+                                    </div>
                                 </div>
-                                <div class="comp-feature">
-                                    <i class="fas fa-certificate"></i>
-                                    <span>شهادات تقدير معتمدة من المنصة</span>
-                                </div>
-                                <div class="comp-feature">
-                                    <i class="fas fa-users"></i>
-                                    <span>تكريم خاص لأوائل الطلبة</span>
+
+                                <div id="comp-action-area">
+                                    <button class="btn-primary" onclick="handleCompetitionSubscription()">اشترك في
+                                        المسابقة</button>
                                 </div>
                             </div>
-
-                            <button class="btn-primary" onclick="alert('سيتم فتح باب الاشتراك قريباً!')">اشترك في
-                                المسابقة</button>
-                        </div>
-                        <div class="competition-visual">
-                            <div class="trophy-container">
-                                <i class="fas fa-trophy floating-trophy"></i>
-                                <div class="glow-effect"></div>
+                            <div class="competition-visual">
+                                <div class="trophy-container">
+                                    <i class="fas fa-trophy floating-trophy"></i>
+                                    <div class="glow-effect"></div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -403,67 +408,114 @@
             </div>
         </section>
 
+        <!-- Competition Match Arena (Hidden by Default) -->
+        <div id="competition-arena" class="admin-overlay hidden" style="background: rgba(0,0,0,0.95); z-index: 9999;">
+            <div class="arena-container">
+                <div class="arena-header glass">
+                    <div class="arena-player player-a">
+                        <div class="player-avatar"><i class="fas fa-user-graduate"></i></div>
+                        <div class="player-info">
+                            <h4 id="arena-player-a-name">أنت</h4>
+                            <span class="player-score" id="arena-player-a-score">0</span>
+                        </div>
+                    </div>
+
+                    <div class="arena-timer-box">
+                        <div class="timer-ring">
+                            <svg>
+                                <circle cx="40" cy="40" r="35"></circle>
+                                <circle id="timer-progress" cx="40" cy="40" r="35"
+                                    style="stroke-dasharray: 220; stroke-dashoffset: 0;"></circle>
+                            </svg>
+                            <span id="arena-timer">30</span>
+                        </div>
+                        <div class="match-round-title" id="arena-match-status">المواجهة المباشرة</div>
+                    </div>
+
+                    <div class="arena-player player-b">
+                        <div class="player-info">
+                            <h4 id="arena-player-b-name">الخصم</h4>
+                            <span class="player-score" id="arena-player-b-score">0</span>
+                        </div>
+                        <div class="player-avatar"><i class="fas fa-user-ninja"></i></div>
+                    </div>
+                </div>
+
+                <div class="arena-main glass">
+                    <div id="arena-question-box">
+                        <div class="q-number">سؤال <span id="arena-q-current">1</span> من <span
+                                id="arena-q-total">10</span></div>
+                        <h2 id="arena-question-text">جاري تحضير السؤال...</h2>
+                        <div class="arena-options-grid" id="arena-options">
+                            <!-- Options go here -->
+                        </div>
+                    </div>
+                </div>
+
+                <div id="arena-footer-msg" class="arena-footer-msg">استعد للمنافسة!</div>
+            </div>
+        </div>
+
         <!-- Contact Section -->
         <section id="contact" class="section reveal">
             <div class="container">
-                <div class="section-header">
-                    <h2>تواصل معنا</h2>
-                    <p>نحن هنا للرد على استفساراتكم ومساعدتكم في أي وقت</p>
-                </div>
-                <div class="contact-wrapper">
-                    <div class="contact-info-cards">
-                        <div class="info-card">
-                            <i class="fas fa-phone"></i>
-                            <h4>اتصل بنا</h4>
-                            <p>01550366657</p>
-                            <a href="tel:01550366657" class="btn-link">اتصل الآن</a>
-                        </div>
-                        <div class="info-card">
-                            <i class="fab fa-whatsapp"></i>
-                            <h4>واتساب</h4>
-                            <p>مراسلة فورية</p>
-                            <a href="https://wa.me/201550366657" target="_blank" class="btn-link">فتح المحادثة</a>
-                        </div>
-                        <div class="info-card">
-                            <i class="fas fa-comment-sms"></i>
-                            <h4>رسائل SMS</h4>
-                            <p>ارسل استفسارك</p>
-                            <a href="sms:01550366657" class="btn-link">ارسال رسالة</a>
-                        </div>
+                <h2>تواصل معنا</h2>
+                <p>نحن هنا للرد على استفساراتكم ومساعدتكم في أي وقت</p>
+            </div>
+            <div class="contact-wrapper">
+                <div class="contact-info-cards">
+                    <div class="info-card">
+                        <i class="fas fa-phone"></i>
+                        <h4>اتصل بنا</h4>
+                        <p>01550366657</p>
+                        <a href="tel:01550366657" class="btn-link">اتصل الآن</a>
                     </div>
-                    <div class="contact-form-container glass">
-                        <form id="contact-form" onsubmit="sendWhatsAppMessage(event)">
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label>الاسم بالكامل</label>
-                                    <input type="text" id="contact-name" placeholder="أدخل اسمك" required>
-                                </div>
-                                <div class="form-group">
-                                    <label>رقم الهاتف</label>
-                                    <input type="tel" id="contact-phone" placeholder="012XXXXXXXX" required>
-                                </div>
-                            </div>
-                            <div class="form-group">
-                                <label>المرحلة الدراسية</label>
-                                <select id="contact-grade" required>
-                                    <option value="" disabled selected>اختر المرحلة</option>
-                                    <option value="الثالث الإعدادي">الصف الثالث الإعدادي</option>
-                                    <option value="الأول الثانوي">الصف الأول الثانوي</option>
-                                    <option value="الثاني الثانوي">الصف الثاني الثانوي</option>
-                                    <option value="الثالث الثانوي - علمي">الصف الثالث الثانوي (علمي)</option>
-                                    <option value="الثالث الثانوي - أدبي">الصف الثالث الثانوي (أدبي)</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label>رسالتك</label>
-                                <textarea id="contact-message" placeholder="اكتب ما يدور في ذهنك هنا..."
-                                    required></textarea>
-                            </div>
-                            <button type="submit" class="btn-primary w-100">إرسال عبر واتساب <i
-                                    class="fab fa-whatsapp"></i></button>
-                        </form>
+                    <div class="info-card">
+                        <i class="fab fa-whatsapp"></i>
+                        <h4>واتساب</h4>
+                        <p>مراسلة فورية</p>
+                        <a href="https://wa.me/201550366657" target="_blank" class="btn-link">فتح المحادثة</a>
+                    </div>
+                    <div class="info-card">
+                        <i class="fas fa-comment-sms"></i>
+                        <h4>رسائل SMS</h4>
+                        <p>ارسل استفسارك</p>
+                        <a href="sms:01550366657" class="btn-link">ارسال رسالة</a>
                     </div>
                 </div>
+                <div class="contact-form-container glass">
+                    <form id="contact-form" onsubmit="sendWhatsAppMessage(event)">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>الاسم بالكامل</label>
+                                <input type="text" id="contact-name" placeholder="أدخل اسمك" required>
+                            </div>
+                            <div class="form-group">
+                                <label>رقم الهاتف</label>
+                                <input type="tel" id="contact-phone" placeholder="012XXXXXXXX" required>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>المرحلة الدراسية</label>
+                            <select id="contact-grade" required>
+                                <option value="" disabled selected>اختر المرحلة</option>
+                                <option value="الثالث الإعدادي">الصف الثالث الإعدادي</option>
+                                <option value="الأول الثانوي">الصف الأول الثانوي</option>
+                                <option value="الثاني الثانوي">الصف الثاني الثانوي</option>
+                                <option value="الثالث الثانوي - علمي">الصف الثالث الثانوي (علمي)</option>
+                                <option value="الثالث الثانوي - أدبي">الصف الثالث الثانوي (أدبي)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>رسالتك</label>
+                            <textarea id="contact-message" placeholder="اكتب ما يدور في ذهنك هنا..."
+                                required></textarea>
+                        </div>
+                        <button type="submit" class="btn-primary w-100">إرسال عبر واتساب <i
+                                class="fab fa-whatsapp"></i></button>
+                    </form>
+                </div>
+            </div>
             </div>
         </section>
     </main>

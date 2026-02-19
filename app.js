@@ -51,8 +51,10 @@ let appData = {
     exams: [],
     files: [],
     vouchers: [],
+    vouchers: [],
     students: [],
-    visits: []
+    visits: [],
+    competition: {}
 };
 
 
@@ -60,7 +62,9 @@ let appData = {
 let currentState = {
     selectedGrade: null,
     selectedBranch: 'الكل',
-    isAdmin: false
+    isAdmin: false,
+    compReg: null,
+    currentMatch: null
 };
 
 // YouTube Players Management
@@ -237,6 +241,42 @@ async function loadInitialData() {
                     renderAdminSection(activeSection);
                 }
             });
+
+        // Competition Data Listener
+        db.collection('settings').doc('competition').onSnapshot(doc => {
+            if (doc.exists) {
+                appData.competition = doc.data();
+                updateCompetitionUI();
+                const activeSection = document.querySelector('.admin-nav li.active')?.dataset.section;
+                if (currentState.isAdmin && activeSection === 'manage-competition') renderAdminSection('manage-competition');
+            }
+        });
+
+        // Competition Registrations Listener (For Admin)
+        db.collection('competition_registrations').onSnapshot(snapshot => {
+            appData.compRegistrations = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            const activeSection = document.querySelector('.admin-nav li.active')?.dataset.section;
+            if (currentState.isAdmin && activeSection === 'manage-competition') renderAdminSection('manage-competition');
+        });
+
+        // Student's Own Registration & Match Listener
+        const session = localStorage.getItem('studentSession');
+        if (session) {
+            const student = JSON.parse(session);
+            db.collection('competition_registrations').doc(student.id).onSnapshot(doc => {
+                currentState.compReg = doc.exists ? doc.data() : null;
+                updateCompetitionUI();
+            });
+
+            db.collection('competition_matches')
+                .onSnapshot(snapshot => {
+                    const matches = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+                    // Only care about Waiting/Playing matches for the current student
+                    const myMatch = matches.find(m => (m.status === 'Waiting' || m.status === 'Playing') && (m.playerA.id === student.id || m.playerB?.id === student.id));
+                    currentState.currentMatch = myMatch;
+                    updateCompetitionUI();
+                });
+        }
 
         // Wait for initial data load before proceeding
         await Promise.all([
@@ -999,6 +1039,103 @@ function renderAdminSection(section) {
                                     <button class="btn-primary" style="background: #ef4444; padding: 5px 10px;" onclick="deleteItem('files', '${f.id}')">
                                         <i class="fas fa-trash"></i> حذف
                                     </button>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+        `;
+    } else if (section === 'manage-competition') {
+        const comp = appData.competition || {};
+        const regs = appData.compRegistrations || [];
+
+        main.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3>إدارة مسابقة المتفوّقين 🏆</h3>
+                <div class="badge" style="background: ${comp.isActive ? '#22c55e' : '#ef4444'}; color: white;">
+                    ${comp.isActive ? 'المسابقة نشطة' : 'المسابقة مغلقة'}
+                </div>
+            </div>
+
+            <div class="admin-form-container glass" style="padding: 25px; margin-bottom: 30px;">
+                <div class="form-group">
+                    <label>عنوان المسابقة</label>
+                    <input type="text" id="comp-title" value="${comp.title || ''}">
+                </div>
+                <div class="form-group">
+                    <label>تفعيل المسابقة للطلاب</label>
+                    <select id="comp-active">
+                        <option value="true" ${comp.isActive ? 'selected' : ''}>نشطة (تظهر للطلاب)</option>
+                        <option value="false" ${!comp.isActive ? 'selected' : ''}>غير نشطة (مخفية)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>المرحلة الحالية</label>
+                    <select id="comp-phase-status">
+                        <option value="Registration" ${comp.status === 'Registration' ? 'selected' : ''}>فتح باب التسجيل</option>
+                        <option value="In Progress" ${comp.status === 'In Progress' ? 'selected' : ''}>المواجهات قائمة</option>
+                        <option value="Ended" ${comp.status === 'Ended' ? 'selected' : ''}>انتهت المسابقة</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>عدد الأسئلة للمواجهة</label>
+                    <input type="number" id="comp-q-count" value="${comp.questionCount || 10}">
+                </div>
+                <div class="form-group">
+                    <label>زمن السؤال الواحد (ثانية)</label>
+                    <input type="number" id="comp-q-time" value="${comp.questionTime || 30}">
+                </div>
+                <div class="form-group" style="grid-column: 1/-1;">
+                    <label>وصف وشروط المسابقة</label>
+                    <textarea id="comp-desc" style="height: 100px;">${comp.desc || ''}</textarea>
+                </div>
+                <div class="hero-btns" style="grid-column: 1/-1;">
+                    <button class="btn-primary" onclick="saveCompetition()">حفظ الإعدادات الأساسية</button>
+                    <button class="btn-primary" style="background: var(--gradient-2);" onclick="triggerDistribution()">بدء التوزيع العشوائي (Round ${(comp.currentRound || 0) + 1})</button>
+                </div>
+            </div>
+
+            <div class="stats-grid" style="margin-bottom: 30px;">
+                <div class="stat-item glass">
+                    <h4>${regs.length}</h4>
+                    <p>إجمالي المسجلين</p>
+                </div>
+                <div class="stat-item glass">
+                    <h4>${regs.filter(r => r.status === 'Active' || r.status === 'Qualified').length}</h4>
+                    <p>الطلاب النشطين</p>
+                </div>
+                <div class="stat-item glass">
+                    <h4>${comp.currentRound || 0}</h4>
+                    <p>الجولة الحالية</p>
+                </div>
+            </div>
+
+            <h4>قائمة المتسابقين</h4>
+            <div class="vouchers-table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>الاسم</th>
+                            <th>المرحلة</th>
+                            <th>الحالة</th>
+                            <th>النقاط التراكمية</th>
+                            <th>إجراءات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${regs.map(r => `
+                            <tr>
+                                <td>${r.studentName}</td>
+                                <td>${appData.grades[r.grade]?.title || r.grade}</td>
+                                <td>
+                                    <span class="badge" style="background: ${r.status === 'Eliminated' ? '#ef4444' : (r.status === 'Active' ? '#3b82f6' : '#22c55e')}">
+                                        ${r.status}
+                                    </span>
+                                </td>
+                                <td>${r.score || 0}</td>
+                                <td>
+                                    <button class="btn-primary" style="background: #ef4444; padding: 5px;" onclick="updateRegStatus('${r.studentId}', 'Eliminated')">استبعاد</button>
                                 </td>
                             </tr>
                         `).join('')}
@@ -2190,7 +2327,359 @@ function testSecurityFeatures() {
     setTimeout(() => {
         toggleBlackout(false);
         // Force watermark refresh
-        showSecurityWatermark({ name: 'تجربة الحماية', phone: '010XXXXXXXX' });
-        alert("تم إظهار العلامة المائية التجريبية. حاول الآن:\n1. الضغط على PrintScreen\n2. الضغط بزر الماوس الأيمن\n3. تحديد النص");
     }, 3000);
 }
+
+function updateCompetitionUI() {
+    const dynamicArea = document.getElementById('competition-dynamic-area');
+    if (!dynamicArea || !appData.competition) return;
+
+    const comp = appData.competition;
+    const session = localStorage.getItem('studentSession');
+    const student = session ? JSON.parse(session) : null;
+    const reg = currentState.compReg;
+
+    document.getElementById('display-comp-title').innerHTML = `<i class="fas fa-trophy" style="color: gold;"></i> ${comp.title || 'مسابقة المتفوقين'}`;
+    document.getElementById('display-comp-desc').textContent = comp.desc || 'استعد لأقوى التحديات الرياضية!';
+
+    let actionHTML = '';
+
+    if (!student) {
+        actionHTML = `<button class="btn-primary" onclick="alert('برجاء تسجيل الدخول أولاً للمشاركة'); scrollToSection('student-login-modal')">سجل دخولك للمشاركة</button>`;
+    } else if (!comp.isActive) {
+        actionHTML = `<div class="badge" style="background: var(--glass-border); color: var(--text-muted);">المسابقة مغلقة حالياً</div>`;
+    } else if (!reg) {
+        // Not registered yet
+        if (comp.status === 'Registration' || !comp.status) {
+            actionHTML = `<button class="btn-primary" onclick="handleCompetitionSubscription()">اشترك الآن في المسابقة</button>`;
+        } else {
+            actionHTML = `<div class="badge" style="background: #ef4444; color: white;">عذراً، انتهت فترة التسجيل</div>`;
+        }
+    } else {
+        // Registered
+        if (reg.status === 'Pending') {
+            actionHTML = `
+                <div class="registration-status glass" style="padding: 15px; border-radius: 10px; border: 1px solid var(--primary-light);">
+                    <p style="color: var(--primary-light); font-weight: 700; margin-bottom: 5px;"><i class="fas fa-clock"></i> تم التسجيل بنجاح</p>
+                    <p style="font-size: 0.9rem; color: var(--text-muted);">في انتظار توزيع الطلاب وبدء المواجهات من قبل الإدارة...</p>
+                </div>
+            `;
+        } else if (reg.status === 'Eliminated') {
+            actionHTML = `
+                <div class="registration-status glass" style="padding: 15px; border-radius: 10px; border: 1px solid #ef4444;">
+                    <p style="color: #ef4444; font-weight: 700; margin-bottom: 5px;"><i class="fas fa-times-circle"></i> انتهى مشوارك</p>
+                    <p style="font-size: 0.9rem; color: var(--text-muted);">لقد خرجت من المسابقة. حظ أوفر في المرة القادمة!</p>
+                </div>
+            `;
+        } else if (reg.status === 'Active' || reg.status === 'Qualified') {
+            if (currentState.currentMatch) {
+                const match = currentState.currentMatch;
+                const opponentName = match.playerA.id === student.id ? (match.playerB ? match.playerB.name : 'تأهل تلقائي') : match.playerA.name;
+
+                actionHTML = `
+                    <div class="registration-status glass" style="padding: 20px; border-radius: 15px; border: 2px solid #3b82f6; animation: pulse-blue 2s infinite;">
+                        <h4 style="color: #3b82f6; margin-bottom: 10px;">لديك مواجهة قائمة! ⚔️</h4>
+                        <p style="margin-bottom: 15px;">الخصم: <strong>${opponentName}</strong></p>
+                        ${opponentName === 'تأهل تلقائي' ?
+                        `<button class="btn-primary" style="background: #22c55e;" onclick="confirmAutoQualification('${match.id}')">تأكيد التأهل للجولة التالية</button>` :
+                        `<button class="btn-primary" onclick="startMatchArena()">دخول ساحة المواجهة</button>`
+                    }
+                    </div>
+                `;
+            } else {
+                actionHTML = `
+                    <div class="registration-status glass" style="padding: 15px; border-radius: 10px; border: 1px solid #22c55e;">
+                        <p style="color: #22c55e; font-weight: 700; margin-bottom: 5px;"><i class="fas fa-check-circle"></i> أنت بطل متأهل!</p>
+                        <p style="font-size: 0.9rem; color: var(--text-muted);">في انتظار الجولة القادمة...</p>
+                    </div>
+                `;
+            }
+        }
+    }
+
+    document.getElementById('comp-action-area').innerHTML = actionHTML;
+}
+
+async function handleCompetitionSubscription() {
+    const session = localStorage.getItem('studentSession');
+    if (!session) return alert('برجاء تسجيل الدخول أولاً');
+
+    const student = JSON.parse(session);
+
+    if (!confirm('هل أنت متأكد من رغبتك في الاشتراك في المسابقة ببياناتك الحالية؟')) return;
+
+    try {
+        await db.collection('competition_registrations').doc(student.id).set({
+            studentId: student.id,
+            studentName: student.name,
+            grade: student.grade,
+            phone: student.phone,
+            status: 'Pending',
+            score: 0,
+            registeredAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        alert('تم تسجيلك بنجاح في المسابقة! تابع هذه الصفحة لمعرفة موعد مواجهاتك.');
+    } catch (error) {
+        console.error("Error subscribing to competition:", error);
+        alert('حدث خطأ أثناء الاشتراك، برجاء المحاولة لاحقاً');
+    }
+}
+
+async function saveCompetition() {
+    const title = document.getElementById('comp-title').value;
+    const desc = document.getElementById('comp-desc').value;
+    const isActive = document.getElementById('comp-active').value === 'true';
+    const status = document.getElementById('comp-phase-status').value;
+    const questionCount = parseInt(document.getElementById('comp-q-count').value) || 10;
+    const questionTime = parseInt(document.getElementById('comp-q-time').value) || 30;
+
+    try {
+        await db.collection('settings').doc('competition').update({
+            title,
+            desc,
+            isActive,
+            status,
+            questionCount,
+            questionTime,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        alert('تم تحديث إعدادات المسابقة');
+    } catch (error) {
+        console.error("Error saving competition:", error);
+        alert('فشل الحفظ');
+    }
+}
+
+// Admin Logic for Students Distribution
+async function triggerDistribution() {
+    if (!confirm('سيتم الآن توزيع الطلاب المسجلين عشوائياً وبدء الجولة الأولى. هل أنت متأكد؟')) return;
+
+    const regs = appData.compRegistrations || [];
+    const activeRegs = regs.filter(r => r.status === 'Pending' || r.status === 'Qualified');
+
+    if (activeRegs.length < 2) return alert('يجب وجود طالبين على الأقل لبدء المسابقة');
+
+    // Shuffle
+    const shuffled = [...activeRegs].sort(() => Math.random() - 0.5);
+    const matches = [];
+    const batch = db.batch();
+
+    for (let i = 0; i < shuffled.length; i += 2) {
+        const playerA = shuffled[i];
+        const playerB = shuffled[i + 1] || null;
+
+        const matchRef = db.collection('competition_matches').doc();
+        const matchData = {
+            round: (appData.competition.currentRound || 0) + 1,
+            playerA: { id: playerA.studentId, name: playerA.studentName },
+            playerB: playerB ? { id: playerB.studentId, name: playerB.studentName } : null,
+            status: playerB ? 'Waiting' : 'Finished',
+            winner: playerB ? null : playerA.id,
+            results: { playerA: 0, playerB: 0 },
+            startTime: null,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        };
+        batch.set(matchRef, matchData);
+
+        // Update student status to Active
+        batch.update(db.collection('competition_registrations').doc(playerA.studentId), { status: 'Active' });
+        if (playerB) batch.update(db.collection('competition_registrations').doc(playerB.studentId), { status: 'Active' });
+    }
+
+    // Update competition round
+    batch.update(db.collection('settings').doc('competition'), {
+        currentRound: (appData.competition.currentRound || 0) + 1,
+        status: 'In Progress'
+    });
+
+    try {
+        await batch.commit();
+        alert('تم توزيع الطلاب وبدء المواجهات بنجاح!');
+    } catch (error) {
+        console.error("Distribution error:", error);
+        alert('حدث خطأ أثناء التوزيع');
+    }
+}
+
+// Arena Logic
+let arenaTimerInterval = null;
+let currentMatchData = null;
+let currentQuestionIndex = 0;
+let arenaQuestions = [];
+
+async function startMatchArena() {
+    if (!currentState.currentMatch) return;
+
+    const match = currentState.currentMatch;
+    currentMatchData = match;
+
+    // Set status to Playing if not already
+    await db.collection('competition_matches').doc(match.id).update({
+        status: 'Playing',
+        startTime: firebase.firestore.FieldValue.serverTimestamp()
+    });
+
+    // Load Quiz Questions (Use existing logic from add-exam if possible or specific competition bank)
+    // For now, let's take questions from the first "Active" exam for that grade
+    const student = JSON.parse(localStorage.getItem('studentSession'));
+    const gradeExams = appData.exams.filter(e => e.grade === student.grade);
+    if (gradeExams.length === 0) return alert('عذراً، لا توجد أسئلة متوفرة لهذه المسابقة حالياً');
+
+    arenaQuestions = gradeExams[0].questions.slice(0, appData.competition.questionCount || 10);
+    currentQuestionIndex = 0;
+
+    // Show Arena UI
+    const arena = document.getElementById('competition-arena');
+    arena.classList.remove('hidden');
+
+    document.getElementById('arena-player-a-name').textContent = student.name;
+    document.getElementById('arena-player-b-name').textContent = match.playerA.id === student.id ? (match.playerB ? match.playerB.name : 'تأهل تلقائي') : match.playerA.name;
+
+    renderArenaQuestion();
+    startArenaTimer();
+}
+
+function renderArenaQuestion() {
+    if (currentQuestionIndex >= arenaQuestions.length) {
+        finishMatch();
+        return;
+    }
+
+    const q = arenaQuestions[currentQuestionIndex];
+    document.getElementById('arena-q-current').textContent = currentQuestionIndex + 1;
+    document.getElementById('arena-q-total').textContent = arenaQuestions.length;
+    document.getElementById('arena-question-text').textContent = q.text;
+
+    const optionsContainer = document.getElementById('arena-options');
+    optionsContainer.innerHTML = '';
+    q.opts.forEach((opt, idx) => {
+        const btn = document.createElement('div');
+        btn.className = 'arena-opt';
+        btn.textContent = opt;
+        btn.onclick = () => selectArenaOption(idx + 1);
+        optionsContainer.appendChild(btn);
+    });
+}
+
+async function selectArenaOption(optIdx) {
+    const q = arenaQuestions[currentQuestionIndex];
+    const isCorrect = parseInt(q.correct) === optIdx;
+
+    // Update local score
+    const student = JSON.parse(localStorage.getItem('studentSession'));
+    const matchRef = db.collection('competition_matches').doc(currentMatchData.id);
+
+    const increment = isCorrect ? 1 : 0;
+    const field = currentMatchData.playerA.id === student.id ? 'results.playerA' : 'results.playerB';
+
+    await matchRef.update({
+        [field]: firebase.firestore.FieldValue.increment(increment)
+    });
+
+    currentQuestionIndex++;
+    renderArenaQuestion();
+}
+
+function startArenaTimer() {
+    let timeLeft = appData.competition.questionTime || 30;
+    const timerDisplay = document.getElementById('arena-timer');
+    const progressCircle = document.getElementById('timer-progress');
+    const totalTime = timeLeft;
+
+    if (arenaTimerInterval) clearInterval(arenaTimerInterval);
+
+    arenaTimerInterval = setInterval(() => {
+        timeLeft--;
+        timerDisplay.textContent = timeLeft;
+
+        // Update circle animation
+        const offset = 220 - (timeLeft / totalTime) * 220;
+        progressCircle.style.strokeDashoffset = offset;
+
+        if (timeLeft <= 0) {
+            clearInterval(arenaTimerInterval);
+            finishMatch();
+        }
+    }, 1000);
+}
+
+async function finishMatch() {
+    clearInterval(arenaTimerInterval);
+    const arena = document.getElementById('competition-arena');
+    const student = JSON.parse(localStorage.getItem('studentSession'));
+
+    // Final result calculation logic usually on server or cloud functions, 
+    // but here we can do a simple check when both finished.
+    // For now, mark this user as finished.
+
+    document.getElementById('arena-question-box').innerHTML = `
+        <div style="text-align: center; padding: 40px;">
+            <i class="fas fa-check-circle" style="font-size: 5rem; color: #22c55e; margin-bottom: 20px;"></i>
+            <h2>انتهت المواجهة! ✨</h2>
+            <p>سيتم تحديد الفائز تلقائياً بمجرد انتهاء الخصم من الإجابة.</p>
+            <button class="btn-primary" style="margin-top: 20px;" onclick="closeArena()">العودة للمنصة</button>
+        </div>
+    `;
+
+    // Check if both sides are done and declare winner (this is a simplified client-side version)
+    // In a real app, a Cloud Function would handle the match conclusion.
+    setTimeout(async () => {
+        const doc = await db.collection('competition_matches').doc(currentMatchData.id).get();
+        const data = doc.data();
+        if (data.status === 'Finished') return;
+
+        // Determination logic can be complex (who has more score, who finished faster etc.)
+        // Simplified: Mark as finished. Winner is handled by admin or another logic.
+        await db.collection('competition_matches').doc(currentMatchData.id).update({
+            status: 'Finished'
+        });
+    }, 2000);
+}
+
+function closeArena() {
+    document.getElementById('competition-arena').classList.add('hidden');
+    // Reload state
+    updateCompetitionUI();
+}
+
+async function confirmAutoQualification(matchId) {
+    const student = JSON.parse(localStorage.getItem('studentSession'));
+    await db.collection('competition_matches').doc(matchId).update({
+        status: 'Finished',
+        winner: student.id
+    });
+    await db.collection('competition_registrations').doc(student.id).update({
+        status: 'Qualified'
+    });
+    alert('مبروك! تأهلت تلقائياً للجولة التالية.');
+}
+
+async function updateRegStatus(studentId, newStatus) {
+    if (!confirm('هل أنت متأكد من تغيير حالة الطالب؟')) return;
+    try {
+        await db.collection('competition_registrations').doc(studentId).update({ status: newStatus });
+        alert('تم التحديث');
+    } catch (e) {
+        alert('خطأ في التحديث');
+    }
+}
+
+// System Initialization for Competition (Runs once if missing)
+async function initCompetitionSettings() {
+    const compRef = db.collection('settings').doc('competition');
+    const doc = await compRef.get();
+    if (!doc.exists) {
+        await compRef.set({
+            title: "مسابقة المتفوقين الكبرى",
+            desc: "أهلاً بكم في المسابقة الكبرى لمادة الرياضيات. استعدوا للمواجهات المباشرة!",
+            isActive: false,
+            status: "Registration",
+            questionCount: 10,
+            questionTime: 30,
+            currentRound: 0,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        console.log("Competition settings initialized.");
+    }
+}
+initCompetitionSettings();
